@@ -1,0 +1,31 @@
+# ============================================================================
+# AI Smart Pricing Engine — Python Dependencies
+# ============================================================================
+
+# Data manipulation
+pandas>=2.0.0
+numpy>=1.24.0
+
+# Machine Learning
+scikit-learn>=1.3.0
+lightgbm>=4.0.0
+statsmodels>=0.14.0
+
+# Optimization
+scipy>=1.11.0
+
+# Visualization
+plotly>=5.17.0
+matplotlib>=3.7.0
+seaborn>=0.12.0
+
+# Dashboard
+streamlit>=1.28.0
+
+# Utilities
+joblib>=1.3.0
+pyyaml>=6.0
+openpyxl>=3.1.0
+
+# Testing
+pytest>=7.4.0

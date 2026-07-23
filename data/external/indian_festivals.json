@@ -1,0 +1,28 @@
+{
+  "festivals": [
+    {"name": "Makar Sankranti",            "start": "2023-01-14", "end": "2023-01-15", "demand_multiplier": 1.4},
+    {"name": "Republic Day Sale",          "start": "2023-01-24", "end": "2023-01-28", "demand_multiplier": 1.8},
+    {"name": "Holi",                       "start": "2023-03-08", "end": "2023-03-09", "demand_multiplier": 1.6},
+    {"name": "Independence Day Sale",      "start": "2023-08-13", "end": "2023-08-17", "demand_multiplier": 1.8},
+    {"name": "Raksha Bandhan",             "start": "2023-08-30", "end": "2023-08-31", "demand_multiplier": 1.5},
+    {"name": "Navratri",                   "start": "2023-10-15", "end": "2023-10-24", "demand_multiplier": 2.0},
+    {"name": "Dussehra",                   "start": "2023-10-24", "end": "2023-10-25", "demand_multiplier": 1.8},
+    {"name": "Diwali",                     "start": "2023-11-10", "end": "2023-11-14", "demand_multiplier": 3.0},
+    {"name": "Big Billion Days",           "start": "2023-10-08", "end": "2023-10-15", "demand_multiplier": 2.5},
+    {"name": "Great Indian Festival",      "start": "2023-10-07", "end": "2023-10-15", "demand_multiplier": 2.5},
+    {"name": "Christmas & New Year",       "start": "2023-12-23", "end": "2024-01-01", "demand_multiplier": 1.6},
+
+    {"name": "Makar Sankranti",            "start": "2024-01-14", "end": "2024-01-15", "demand_multiplier": 1.4},
+    {"name": "Republic Day Sale",          "start": "2024-01-24", "end": "2024-01-28", "demand_multiplier": 1.8},
+    {"name": "Holi",                       "start": "2024-03-25", "end": "2024-03-26", "demand_multiplier": 1.6},
+    {"name": "Independence Day Sale",      "start": "2024-08-13", "end": "2024-08-17", "demand_multiplier": 1.8},
+    {"name": "Raksha Bandhan",             "start": "2024-08-19", "end": "2024-08-20", "demand_multiplier": 1.5},
+    {"name": "Janmashtami",               "start": "2024-08-26", "end": "2024-08-27", "demand_multiplier": 1.3},
+    {"name": "Navratri",                   "start": "2024-10-03", "end": "2024-10-12", "demand_multiplier": 2.0},
+    {"name": "Dussehra",                   "start": "2024-10-12", "end": "2024-10-13", "demand_multiplier": 1.8},
+    {"name": "Diwali",                     "start": "2024-11-01", "end": "2024-11-03", "demand_multiplier": 3.0},
+    {"name": "Big Billion Days",           "start": "2024-10-07", "end": "2024-10-14", "demand_multiplier": 2.5},
+    {"name": "Great Indian Festival",      "start": "2024-10-05", "end": "2024-10-13", "demand_multiplier": 2.5},
+    {"name": "Christmas & New Year",       "start": "2024-12-23", "end": "2025-01-01", "demand_multiplier": 1.6}
+  ]
+}

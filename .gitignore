@@ -1,0 +1,64 @@
+# =============================================================================
+# AI Smart Pricing Engine — .gitignore
+# =============================================================================
+
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+*.egg
+*.so
+
+# ---- Virtual environments ----
+venv/
+env/
+.venv/
+
+# ---- IDE ----
+.vscode/
+.idea/
+*.swp
+*.swo
+*.code-workspace
+
+# ---- Generated data files ----
+data/raw/*.csv
+data/processed/*.csv
+
+# ---- Trained model artifacts ----
+models/*.pkl
+models/*.json
+models/*.txt
+models/*.joblib
+
+# ---- Reports (generated) ----
+reports/figures/*.png
+reports/figures/*.html
+
+# ---- OS files ----
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ---- Jupyter ----
+.ipynb_checkpoints/
+
+# ---- Streamlit ----
+.streamlit/
+
+# ---- Non-project folders (keep out of repo) ----
+Basic/
+Pre Implementation Plan/
+implementation_plan.md
+*.tex
+*.aux
+*.log
+*.synctex.gz
+*.fls
+*.fdb_latexmk
+*.out
+*.toc
+*.docx
