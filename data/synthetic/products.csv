@@ -1,0 +1,9 @@
+product_id,brand,model,variant,category,ram_gb,storage_gb,mrp,launch_date,successor_model,days_to_successor,base_elasticity,base_daily_demand,target_segment
+SKU_IPHONE_17_256,Apple,iPhone 17,256GB Midnight Black,Premium Flagship,8,256,84999.0,2025-11-05,iPhone 18,60,2.4,9.8,Affluent Tech Enthusiasts
+SKU_IPHONE_16_128,Apple,iPhone 16,128GB Blue,Previous-Gen Flagship,6,128,69999.0,2024-11-10,iPhone 17,15,2.8,12.0,Value Premium Buyers
+SKU_PIXEL_10_PRO,Google,Pixel 10 Pro,256GB Hazel,AI Flagship,16,256,109999.0,2026-06-03,Pixel 11 Pro,270,0.85,7.0,AI Professionals & Photographers
+SKU_GALAXY_S26_256,Samsung,Galaxy S26,256GB Titanium Gray,Flagship,12,256,89999.0,2026-03-05,Galaxy S27,180,1.75,14.0,Enterprise & Mainstream Premium
+SKU_ONEPLUS_13_256,OnePlus,OnePlus 13,256GB Emerald Green,Flagship Killer,12,256,64999.0,2026-04-14,OnePlus 14,220,1.9,18.0,Performance Gamers & Young Pros
+SKU_REDMI_NOTE_15_PRO,Xiaomi,Redmi Note 15 Pro,128GB Midnight,Mass Mid-Range,8,128,28999.0,2026-05-04,Redmi Note 16 Pro,160,2.4,35.0,Value Conscious Mass Market
+SKU_GALAXY_A56_128,Samsung,Galaxy A56,128GB Awesome Lilac,Upper Mid-Range,8,128,38999.0,2026-04-04,Galaxy A57,210,2.1,22.0,Youth & Tier-2 Aspirants
+SKU_S26_ULTRA_512,Samsung,Galaxy S26 Ultra,512GB Titanium Black,Ultra Premium,16,512,139999.0,2026-03-05,Galaxy S27 Ultra,180,1.2,5.5,C-Suite & Power Users

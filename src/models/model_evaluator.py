@@ -1,73 +1,52 @@
-import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
-
+"""
+Model Evaluator for Pricing & Demand Forecasts
+Calculates statistical and economic evaluation metrics across SKU segments and price bands.
+"""
 import numpy as np
 import pandas as pd
-from typing import Dict, Any
-from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
-
-try:
-    from src.utils.config import *
-except ImportError:
-    pass
-
+from typing import Dict, Any, List
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
 class ModelEvaluator:
-    """Class for evaluating and comparing model performance."""
-    
-    def __init__(self):
-        self.results = {}  # {model_name: {metric: value}}
-    
-    def evaluate(self, model_name: str, y_true: np.ndarray, y_pred: np.ndarray) -> Dict[str, float]:
-        """Calculate RMSE, MAE, MAPE, R² and store results."""
-        y_true = np.asarray(y_true)
-        y_pred = np.asarray(y_pred)
+    @staticmethod
+    def calculate_regression_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> Dict[str, float]:
+        """Compute standard regression accuracy indicators."""
+        y_true = np.array(y_true, dtype=float)
+        y_pred = np.maximum(0.0, np.array(y_pred, dtype=float))
+
+        mae = float(mean_absolute_error(y_true, y_pred))
+        rmse = float(np.sqrt(mean_squared_error(y_true, y_pred)))
+        r2 = float(r2_score(y_true, y_pred))
         
-        if len(y_true) == 0 or len(y_pred) == 0:
-            raise ValueError("Arrays cannot be empty.")
-            
-        rmse = np.sqrt(mean_squared_error(y_true, y_pred))
-        mae = mean_absolute_error(y_true, y_pred)
-        r2 = r2_score(y_true, y_pred)
-        
-        mask = y_true != 0
-        if np.any(mask):
-            mape = np.mean(np.abs((y_true[mask] - y_pred[mask]) / y_true[mask])) * 100
+        # Mean Absolute Percentage Error (handling zero sales with epsilon)
+        nonzero_mask = y_true > 0
+        if nonzero_mask.sum() > 0:
+            mape = float(np.mean(np.abs((y_true[nonzero_mask] - y_pred[nonzero_mask]) / y_true[nonzero_mask]))) * 100.0
         else:
-            mape = np.nan
-            
-        metrics = {
-            'RMSE': rmse,
-            'MAE': mae,
-            'MAPE (%)': mape,
-            'R²': r2
+            mape = 0.0
+
+        return {
+            "mae": round(mae, 3),
+            "rmse": round(rmse, 3),
+            "r2": round(r2, 3),
+            "mape_pct": round(mape, 2)
         }
+
+    @staticmethod
+    def evaluate_price_curve_monotonicity(
+        candidate_prices: np.ndarray, predicted_demands: np.ndarray
+    ) -> Dict[str, Any]:
+        """
+        Economic sanity check:
+        Ensures that as price increases, predicted demand generally decreases (Law of Demand).
+        """
+        diffs = np.diff(predicted_demands)
+        # Violations occur where demand strictly increases with price
+        violations = (diffs > 0.05).sum()
+        monotonicity_score = 1.0 - (violations / max(1, len(diffs)))
         
-        self.results[model_name] = metrics
-        return metrics
-        
-    def compare_models(self) -> pd.DataFrame:
-        """Return a DataFrame comparing all evaluated models."""
-        if not self.results:
-            return pd.DataFrame()
-            
-        df = pd.DataFrame.from_dict(self.results, orient='index')
-        return df.sort_values(by='RMSE', ascending=True)
-        
-    def get_residuals(self, y_true: np.ndarray, y_pred: np.ndarray) -> np.ndarray:
-        """Return residuals array."""
-        return np.asarray(y_true) - np.asarray(y_pred)
-        
-    def print_report(self) -> None:
-        """Pretty-print comparison table."""
-        df = self.compare_models()
-        if df.empty:
-            print("No models evaluated yet.")
-            return
-            
-        print("=" * 50)
-        print("MODEL EVALUATION REPORT")
-        print("=" * 50)
-        print(df.to_string())
-        print("=" * 50)
+        return {
+            "is_predominantly_monotonic": bool(monotonicity_score >= 0.85),
+            "monotonicity_score": round(float(monotonicity_score), 3),
+            "monotonic_violations": int(violations)
+        }

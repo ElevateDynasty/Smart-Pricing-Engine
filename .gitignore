@@ -27,6 +27,7 @@ env/
 # ---- Generated data files ----
 data/raw/*.csv
 data/processed/*.csv
+data/processed/*.parquet
 
 # ---- Trained model artifacts ----
 models/*.pkl
@@ -53,6 +54,9 @@ desktop.ini
 Basic/
 Pre Implementation Plan/
 implementation_plan.md
+_legacy_archive/
+models_saved/
+.pytest_cache/
 *.tex
 *.aux
 *.log

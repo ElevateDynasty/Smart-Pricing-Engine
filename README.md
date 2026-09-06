@@ -1,181 +1,161 @@
-# 🎯 AI Smart Pricing Engine
+# ⚡ AI-Powered Dynamic Pricing and Inventory Optimization for Electronics Retail
 
-**AI-Powered Dynamic Pricing Engine for Indian E-Commerce Sellers**
+[![Python 3.14+](https://img.shields.io/badge/python-3.14+-blue.svg)](https://www.python.org/downloads/)
+[![Machine Learning](https://img.shields.io/badge/ML-LightGBM%20%7C%20Scikit--Learn-brightgreen)](https://lightgbm.readthedocs.io/)
+[![Optimization](https://img.shields.io/badge/Optimization-SciPy%20%7C%20Constrained%20Lifecycle-orange)](https://scipy.org/)
+[![UI Dashboard](https://img.shields.io/badge/Dashboard-Streamlit%20%7C%20Plotly-red)](https://streamlit.io/)
+[![Tests](https://img.shields.io/badge/Tests-Pytest%20Passing-brightgreen)](https://pytest.org/)
 
-> Maximize profit by finding the optimal selling price using Machine Learning demand forecasting, price elasticity estimation, and mathematical optimization.
-
----
-
-## 📌 Problem
-
-Most small-to-medium Indian e-commerce sellers price products by **gut feeling** or simple cost-plus markup — leaving significant money on the table. Amazon changes prices **2.5 million times per day** using data-driven pricing. This project brings the same intelligence to small sellers.
-
-**Example:** A phone case costing ₹100 —  
-| Price | Units/Day | Daily Profit |
-|-------|-----------|-------------|
-| ₹250 | 20 | ₹3,000 |
-| ₹220 | 50 | ₹6,000 |
-| **₹199** | **80** | **₹7,920 ← Optimal!** |
-
-## 🧠 How It Works — The 3 Pillars
-
-### 1️⃣ Demand Forecasting
-> *"How much will I sell at price X?"*
-
-- **LightGBM** gradient boosting model trained on historical sales data
-- Features: price, competitor price, day of week, festivals, weather, ratings, ad spend
-- Lag features & rolling averages for temporal patterns
-
-### 2️⃣ Price Elasticity Estimation
-> *"If I change price by 10%, how much does demand change?"*
-
-- **Log-log regression** model: `ln(demand) = α - β·ln(price) + γ·X`
-- β = price elasticity coefficient (learned per category)
-- Electronics (β≈2.2): very price-sensitive | Health (β≈1.2): less sensitive
-
-### 3️⃣ Profit Optimization
-> *"What price maximizes (Price - Cost) × Demand?"*
-
-- **SciPy optimizer** finds the profit-maximizing sweet spot
-- Supports what-if scenarios: festivals, competitor changes, weekends
-
-### Mathematical Formulation
-
-```
-Maximize  Π(p) = (p - c) × D(p)
-
-Subject to:  p ≥ c          (price covers cost)
-             p ≤ p_max      (market ceiling)
-             D(p) ≥ 0       (non-negative demand)
-
-Where:  D(p) = A · p^(-β) · e^(γ·X)    (constant-elasticity demand model)
-```
+An enterprise-grade AI revenue management engine designed for **Indian offline multi-brand consumer electronics retailers** (smartphones and tech hardware), built strictly according to [`AI_Retail_Pricing_Engine_Project_Spec.md`](./AI_Retail_Pricing_Engine_Project_Spec.md).
 
 ---
 
-## 🏗️ Project Structure
+## 🎯 Executive Summary & Core Question
 
-```
-Smart-Pricing-Engine/
-│
-├── src/
-│   ├── data/
-│   │   ├── generate_synthetic_data.py   # Realistic sales data generator
-│   │   ├── data_pipeline.py             # Data loading & cleaning
-│   │   └── feature_engineering.py       # 15+ ML features
-│   │
-│   ├── models/
-│   │   ├── demand_forecaster.py         # LightGBM demand model
-│   │   ├── elasticity_estimator.py      # Log-log price elasticity
-│   │   └── model_evaluator.py           # RMSE, MAE, MAPE, R²
-│   │
-│   ├── optimization/
-│   │   ├── price_optimizer.py           # SciPy profit maximizer
-│   │   └── scenario_engine.py           # What-if analysis
-│   │
-│   ├── visualization/
-│   │   └── plots.py                     # Plotly dark-themed charts
-│   │
-│   └── utils/
-│       ├── config.py                    # Central configuration
-│       └── helpers.py                   # Utility functions
-│
-├── data/external/
-│   └── indian_festivals.json            # Festival calendar (2023-2025)
-│
-├── dashboard/                           # Streamlit web app (coming soon)
-├── main.py                              # End-to-end pipeline runner
-├── requirements.txt                     # Python dependencies
-└── README.md
+Traditional pricing software merely predicts tomorrow's market price or applies simplistic discount heuristics. This engine solves the true economic retail dilemma:
+
+> **"Given current inventory, acquisition cost, current and competitor prices, sales velocity, demand elasticity, product lifecycle, and approaching successor launches, what selling price or pricing strategy maximizes expected total profit over the remaining selling horizon while keeping inventory risk under control?"**
+
+### 🌟 Core Differentiators
+1. **Lifecycle Profit Over Today's Margin:** Does not optimize a single day's margin in isolation. Evaluates daily carrying cost, financing charges, and post-successor depreciation penalties over a 60–180 day horizon.
+2. **Indian Legal Metrology Compliance:** Strict mathematical enforcement of the Legal Metrology Rules (Packaged Commodities): **Selling Price ≤ MRP**.
+3. **Intelligent Non-Discounting & Price Increases:** Capable of recommending **holding or increasing prices** when demand is inelastic, replacement costs inflate (e.g. memory-cost inflation), or competitors are out of stock. Competitor prices serve as informational signals, not automatic matching targets.
+4. **Multi-Store Inventory Balancing:** Identifies velocity mismatches across physical retail branches (e.g., Mumbai Palladium vs Pune FC Road) and generates profitable inter-store transfers where margin preserved exceeds logistics transfer costs.
+5. **Explainable AI for Retailers:** Generates natural language briefings detailing the exact unit-economics tradeoff behind every recommendation.
+
+---
+
+## 📐 Mathematical Formulation
+
+### 1. Expected Total Lifecycle Profit Objective
+For any candidate selling price $P \in [\text{Cost}, \text{MRP}]$ over remaining horizon $T$:
+
+$$\max_{P} \; \Pi_{\text{lifecycle}}(P) = \text{Gross Margin}(P) - \text{Carrying Costs}(P) - \text{Depreciation Loss}(P)$$
+
+Where:
+- $\text{Gross Margin}(P) = \min(I_0, D(P) \times T) \times (P - C_{\text{unit}})$
+- $\text{Carrying Costs}(P) = \bar{I}(P) \times C_{\text{unit}} \times \left( r_{\text{daily\_holding}} + \frac{r_{\text{annual\_finance}}}{365} \right) \times T$
+- $\text{Depreciation Loss}(P) = \max(0, I_0 - D(P) \times T) \times C_{\text{unit}} \times \delta_{\text{post\_successor}}$
+- Subject to:
+  $$C_{\text{unit}} \le P \le \text{MRP}$$
+
+### 2. Relative Price Elasticity Model
+Estimated via econometric log-log regression:
+$$\ln(\text{Units} + 1) = \alpha - \beta \ln\left(\frac{P}{P_{\text{comp}}}\right) + \gamma \cdot \text{Weekend} + \epsilon$$
+
+---
+
+## 🏗️ System Architecture
+
+```text
+               RETAILER TRANSACTION & INVENTORY DATA
+                                |
+             +------------------+------------------+
+             |                                     |
+       POS / ERP Feeds                        Daily CSV / Manual
+             |                                     |
+             +------------------+------------------+
+                                |
+                        DATA PIPELINE
+             (Validation, Merging, SQL Persistence)
+                                |
+                       FEATURE ENGINEERING
+           (MRP Ratios, Competitor Gaps, Lifecycle Urgency)
+                                |
+             +------------------+------------------+
+             |                                     |
+             v                                     v
+     DEMAND FORECASTER                    PRICE ELASTICITY
+   (LightGBM / Monotonic)               (Log-Log Econometrics)
+             |                                     |
+             +------------------+------------------+
+                                |
+                  CONSTRAINED LIFECYCLE OPTIMIZER
+             (MRP Ceiling, Carrying Costs, Depreciation)
+                                |
+             +------------------+------------------+
+             |                  |                  |
+      RECOMMENDED PRICE    REASONING ENGINE   MULTI-STORE BALANCER
+      (Stepped Roadmap)    (Plain Language)   (Branch Transfers)
+             |                  |                  |
+             +------------------+------------------+
+                                |
+                   STREAMLIT WEB DASHBOARD
+              (6 Dedicated Interactive Modules)
 ```
 
 ---
 
-## 🚀 Quick Start
+## 📱 The Flagship Showcase Demonstration
 
-### 1. Clone & Install
+Directly illustrates **Spec Section 1 & Section 27**:
+- **SKU:** iPhone 17 256GB (Midnight)
+- **Current Inventory:** 800 units across stores
+- **Acquisition Cost:** ₹68,000 / unit
+- **Current Selling Price:** ₹79,999
+- **Competitor Average:** ₹77,999 (Lowest: ₹76,999)
+- **Successor Launch:** 60 days away
+- **Status Quo Velocity:** 10.2 units/day (clears only 611 units; leaves **188 units stranded**, risking ₹38.3 Lakhs in depreciation write-downs)
 
-```bash
-git clone https://github.com/ElevateDynasty/Smart-Pricing-Engine.git
-cd Smart-Pricing-Engine
-pip install -r requirements.txt
-```
+### 📊 Benchmark Comparison
+| Strategy | Selling Price | Clearance % | Stranded Units | Expected Net Profit | Profit Lift vs Status Quo |
+| :--- | :---: | :---: | :---: | :---: | :---: |
+| **Baseline A: Status Quo** | ₹79,999 | 76.4% | 188 units | ₹18,17,777 | ₹0 |
+| **Baseline B: Match Competitor** | ₹76,999 | 76.8% | 185 units | ₹72,237 | -₹17,45,540 *(Destroyed Margin)* |
+| **Baseline C: Fixed 15% Markdown** | ₹68,000 | 76.8% | 185 units | -₹54,55,542 | -₹72,73,319 *(Severe Loss)* |
+| **⚡ AI Pricing Engine** | **₹79,000** | **93.2%** | **54 units** | **₹56,45,631** | **+₹38,27,854 (+210.6%)** |
 
-### 2. Run the Full Pipeline
+---
 
-```bash
-python main.py
-```
+## 💻 Web Dashboard Modules (Streamlit)
 
-This will:
-1. Generate synthetic sales data (~50K rows, 5 products, 2 years)
-2. Clean data & engineer 15+ ML features
-3. Train LightGBM demand forecaster
-4. Estimate price elasticity via log-log regression
-5. Find optimal prices for all products
-6. Print a complete pricing recommendation report
-
-### 3. Launch Dashboard (coming soon)
-
-```bash
+Launch the interactive dashboard:
+```powershell
 streamlit run dashboard/app.py
 ```
 
----
-
-## 📊 Product Catalog
-
-| Product | Category | Cost (₹) | Base Price (₹) | Elasticity (β) |
-|---------|----------|----------|---------------|----------------|
-| Wireless Earbuds | Electronics | 400 | 899 | 2.2 |
-| Phone Case (Premium) | Electronics | 100 | 299 | 2.5 |
-| Cotton T-Shirt | Fashion | 200 | 499 | 1.8 |
-| Yoga Mat | Home & Fitness | 350 | 799 | 1.5 |
-| Organic Face Wash | Health & Beauty | 80 | 249 | 1.2 |
+1. **📊 1. Executive Overview:** Total portfolio valuation (₹ Cr), morning prioritized pricing queue, portfolio clearance rate, and profit lift.
+2. **🏷️ 2. SKU Pricing Deep-Dive:** Interactive SKU explorer with dual-axis demand & profit curves, day-by-day inventory drawdown trajectory, and retailer briefing memos.
+3. **🎛️ 3. Price Simulator Sandbox:** Real-time "What-If" sandbox with price sliders, competitor stockout toggles, footfall modifiers, and live sensitivity plots.
+4. **⚠️ 4. Inventory Risk Radar:** Days-to-successor countdown radar, stranded capital exposure, and depreciation write-down mitigation matrix.
+5. **🌐 5. Competitor Intelligence:** Online (Amazon, Flipkart) vs offline (Croma, Vijay Sales) price gaps and stockout opportunity detector.
+6. **🔄 6. Multi-Store Balancing:** Store velocity vs stock disbalance matrix, inter-store transfer generator, and phased multi-week pricing schedules.
 
 ---
 
-## 🔬 Tech Stack
+## 🛠️ CLI Quickstart & Pipeline Execution
 
-| Component | Technology |
-|-----------|-----------|
-| **Language** | Python 3.10+ |
-| **ML Models** | LightGBM, Scikit-learn, Statsmodels |
-| **Optimization** | SciPy (minimize_scalar, Brent's method) |
-| **Visualization** | Plotly (dark theme) |
-| **Dashboard** | Streamlit |
-| **Data** | Pandas, NumPy |
+```powershell
+# Run the complete end-to-end pipeline (Data Generation -> Model Training -> Showcase Demo)
+python main.py --all
 
----
+# Run only the showcase demonstration
+python main.py --demo
 
-## 📈 Key Features
+# Re-generate synthetic Indian retail datasets
+python main.py --generate-data
 
-- **5 diverse product categories** with realistic demand patterns
-- **Indian festival calendar** (Diwali 3×, Big Billion Days 2.5× demand spikes)
-- **What-if scenario engine** — simulate festivals, competitor price changes, weekends
-- **Interactive profit curves** — see exactly where the optimal price lies
-- **Category-level elasticity comparison** — which products are most price-sensitive?
-- **Model performance dashboard** — RMSE, MAE, MAPE, R², feature importance
+# Re-train LightGBM demand forecaster & price elasticity models
+python main.py --train
+```
 
 ---
 
-## 📚 Research Foundation
+## 🧪 Automated Testing
 
-Built on 20 research papers (2015-2025) including:
-- Ban & Keskin (2021) — Dynamic Pricing with ML survey
-- Taylor & Letham (2018) — Prophet forecasting at scale
-- Cohen et al. (2020) — Feature-based dynamic pricing (MIT)
-- Pavlyshenko (2019) — ML methods for demand forecasting
-- Sharma & Gupta (2024) — Indian e-commerce pricing strategies
+Run the full pytest suite (9 unit tests covering data pipeline, feature engineering, models, constraints, and optimization):
+```powershell
+pytest tests/ -v
+```
 
 ---
 
-## 📋 License
+## 📁 Project Folder Renaming Guide
 
-This project is built for academic/educational purposes as a Technical Seminar project.
-
----
-
-<p align="center">
-  <b>Built with ❤️ for Indian e-commerce sellers</b>
-</p>
+To rename the root workspace folder from `AI PRice recomm` to the theme name **`AI-Retail-Pricing-Engine`**:
+1. Close Antigravity IDE / VS Code.
+2. In PowerShell or Command Prompt, run:
+   ```powershell
+   Rename-Item -Path "c:\Users\gaura\OneDrive\Desktop\Technical Seminar project\AI PRice recomm" -NewName "AI-Retail-Pricing-Engine"
+   ```
+3. Re-open the folder `c:\Users\gaura\OneDrive\Desktop\Technical Seminar project\AI-Retail-Pricing-Engine` in the IDE.

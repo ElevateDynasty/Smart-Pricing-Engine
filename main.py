@@ -1,232 +1,163 @@
 """
-main.py — AI Smart Pricing Engine: End-to-End Pipeline Runner
-=============================================================
-
-Runs the complete pipeline:
-  1. Generate synthetic sales data
-  2. Clean & engineer features
-  3. Train LightGBM demand forecaster
-  4. Estimate price elasticity (log-log regression)
-  5. Optimize prices for all products
-  6. Print pricing recommendations
-
-Usage:
-    python main.py
+Main Entry Point for AI-Powered Dynamic Pricing and Inventory Optimization
+Supports data generation, model training, baseline benchmarking, and the showcase demonstration.
 """
-
+import argparse
 import sys
 from pathlib import Path
-
-# Ensure project root is on the path
-PROJECT_ROOT = Path(__file__).resolve().parent
-sys.path.insert(0, str(PROJECT_ROOT))
-
-import warnings
-warnings.filterwarnings("ignore")
-
-import numpy as np
 import pandas as pd
 
+# Ensure UTF-8 stdout encoding on Windows consoles
+if sys.platform == "win32" and hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
 
-def print_header(text: str):
-    """Print a styled section header."""
-    width = 60
-    print("\n" + "=" * width)
-    print(f"  {text}")
-    print("=" * width)
+from src.config import SHOWCASE_SCENARIO
+CURRENCY_STR = "₹"
 
+from src.data.generate_synthetic_data import SyntheticDataGenerator
+from src.data.data_pipeline import DataPipeline
+from src.models.demand_forecaster import DemandForecaster
+from src.models.elasticity_estimator import ElasticityEstimator
+from src.optimization.lifecycle_optimizer import LifecycleOptimizer
+from src.explainability.reason_generator import ReasonGenerator
+from src.evaluation.baseline_benchmarking import BaselineBenchmarking
 
-def print_product_card(product_name: str, result: dict, current: dict = None):
-    """Print a nicely formatted product recommendation card."""
-    print(f"\n  ┌─────────────────────────────────────────────┐")
-    print(f"  │  📦 {product_name:<40}│")
-    print(f"  ├─────────────────────────────────────────────┤")
-    print(f"  │  🎯 Optimal Price:    ₹{result['optimal_price']:<20,.0f}│")
-    print(f"  │  📈 Predicted Demand: {result['predicted_demand']:<21,.1f}│")
-    print(f"  │  💰 Daily Profit:     ₹{result['daily_profit']:<20,.0f}│")
-    print(f"  │  📊 Monthly Profit:   ₹{result['monthly_profit']:<20,.0f}│")
-    print(f"  │  📉 Margin:           {result['margin_pct']:<20,.1%}│")
-    if current:
-        improvement = current.get("improvement", {})
-        profit_change = improvement.get("profit_change_pct", 0)
-        extra = improvement.get("monthly_extra_profit", 0)
-        arrow = "↑" if profit_change > 0 else "↓"
-        print(f"  ├─────────────────────────────────────────────┤")
-        print(f"  │  vs Current Price ₹{current['current']['price']:<25,.0f}│")
-        print(f"  │  Profit Change:  {arrow} {abs(profit_change):<23,.1f}%│")
-        print(f"  │  Monthly Extra:  ₹{extra:<25,.0f}│")
-    print(f"  └─────────────────────────────────────────────┘")
+def run_data_generation():
+    print("=" * 70)
+    print("STEP 1: GENERATING SYNTHETIC RETAIL DATA (INDIAN ELECTRONICS MARKET)")
+    print("=" * 70)
+    gen = SyntheticDataGenerator()
+    gen.generate_all()
 
+def run_training():
+    print("=" * 70)
+    print("STEP 2: ASSEMBLING DATA PIPELINE & TRAINING MODELS")
+    print("=" * 70)
+    dp = DataPipeline()
+    unified_df = dp.build_unified_dataset()
+    print(f"Unified dataset built: {len(unified_df)} daily store-SKU records.")
+
+    print("\nTraining Demand Forecaster (LightGBM)...")
+    forecaster = DemandForecaster(model_type="lightgbm")
+    metrics = forecaster.fit(unified_df)
+    print(f"Demand Forecaster Trained | MAE: {metrics['mae']} units | RMSE: {metrics['rmse']} | R2: {metrics['r2']}")
+
+    print("\nEstimating Price Elasticity across Catalog...")
+    elasticity_est = ElasticityEstimator()
+    elasticities = elasticity_est.fit(unified_df)
+    for pid, el in list(elasticities.items())[:6]:
+        print(f"  SKU: {pid:22} | Elasticity: {el['elasticity']} ({el['regime']}) | R2: {el['r_squared']}")
+
+    return forecaster, elasticity_est, unified_df
+
+def run_showcase_demo(forecaster: DemandForecaster):
+    print("\n" + "=" * 70)
+    print("STEP 3: EXECUTING FLAGSHIP DEMO (SPEC SECTION 1 & SECTION 27)")
+    print("=" * 70)
+    sc = SHOWCASE_SCENARIO
+    print(f"Target Product       : {sc['product_name']} ({sc['product_id']})")
+    print(f"Current Inventory    : {sc['current_inventory']} units across stores")
+    print(f"Acquisition Cost     : {CURRENCY_STR}{sc['unit_cost']:,.0f} per unit")
+    print(f"Current Selling Price: {CURRENCY_STR}{sc['current_price']:,.0f}")
+    print(f"Competitor Average   : {CURRENCY_STR}{sc['competitor_avg_price']:,.0f}")
+    print(f"Competitor Lowest    : {CURRENCY_STR}{sc['competitor_min_price']:,.0f}")
+    print(f"MRP (Legal Ceiling)  : {CURRENCY_STR}{sc['mrp']:,.0f}")
+    print(f"Successor Launch     : In {sc['days_to_successor']} days")
+
+    optimizer = LifecycleOptimizer(forecaster)
+    result = optimizer.optimize_sku(
+        product_id=sc["product_id"],
+        product_name=sc["product_name"],
+        current_price=sc["current_price"],
+        mrp=sc["mrp"],
+        unit_cost=sc["unit_cost"],
+        current_inventory=sc["current_inventory"],
+        competitor_avg_price=sc["competitor_avg_price"],
+        competitor_min_price=sc["competitor_min_price"],
+        days_to_successor=sc["days_to_successor"]
+    )
+
+    print("\n" + "-" * 70)
+    print("DEMAND CURVE SIMULATION ACROSS CANDIDATE PRICES:")
+    print("-" * 70)
+    test_sample_prices = [79999.0, 78999.0, 77999.0, 77499.0, 76999.0, 75999.0]
+    for p in test_sample_prices:
+        d = forecaster.predict_point(
+            selling_price=p,
+            mrp=sc["mrp"],
+            competitor_avg_price=sc["competitor_avg_price"],
+            competitor_min_price=sc["competitor_min_price"],
+            unit_cost=sc["unit_cost"],
+            opening_inventory=sc["current_inventory"],
+            days_to_successor=sc["days_to_successor"]
+        )
+        total_sales = min(sc["current_inventory"], d * 60)
+        leftover = max(0, sc["current_inventory"] - total_sales)
+        print(f"  Price: {CURRENCY_STR}{p:,.0f} -> Daily Demand: {d:.1f} units/day | 60-Day Sales: {int(total_sales)} | Leftover: {int(leftover)}")
+
+    print("\n" + "=" * 70)
+    print("AI LIFECYCLE OPTIMIZATION RECOMMENDATION")
+    print("=" * 70)
+    print(f"Action               : {result.price_action.upper()}")
+    print(f"Recommended Price    : {CURRENCY_STR}{result.recommended_price:,.0f} (Change: {CURRENCY_STR}{result.price_change:,.0f} / {result.price_change_pct}%)")
+    print(f"Expected Daily Sales : {result.expected_daily_demand:.1f} units/day (Status Quo: {result.status_quo_daily_demand:.1f})")
+    print(f"Clearance Time       : {result.projected_clearance_days:.0f} days (Status Quo: {result.status_quo_clearance_days:.0f} days)")
+    print(f"Clearance Probability: {result.clearance_probability * 100:.1f}%")
+    print(f"Leftover Inventory   : {int(result.expected_leftover_inventory)} units (Status Quo: {int(result.status_quo_leftover)} units)")
+    print(f"Expected Total Profit: {CURRENCY_STR}{result.expected_lifecycle_profit:,.0f}")
+    print(f"Status Quo Profit    : {CURRENCY_STR}{result.status_quo_profit:,.0f}")
+    print(f"Net Profit Lift      : +{CURRENCY_STR}{result.profit_lift_amount:,.0f} (+{result.profit_lift_pct}%)")
+
+    # Natural language memo
+    memo = ReasonGenerator.generate_retailer_memo(result)
+    print("\nRETAILER EXPLANATION MEMO:")
+    print(f"  Headline : {memo['headline']}")
+    print(f"  Rationale: {memo['key_rationale']}")
+    print(f"  Advantage: {memo['offline_advantage']}")
+
+    # Benchmark vs baselines
+    benchmarker = BaselineBenchmarking(optimizer)
+    bench_df = benchmarker.benchmark_sku(
+        product_id=sc["product_id"],
+        product_name=sc["product_name"],
+        current_price=sc["current_price"],
+        mrp=sc["mrp"],
+        unit_cost=sc["unit_cost"],
+        current_inventory=sc["current_inventory"],
+        competitor_avg_price=sc["competitor_avg_price"],
+        competitor_min_price=sc["competitor_min_price"],
+        days_to_successor=sc["days_to_successor"]
+    )
+    print("\nBENCHMARKING VS HEURISTIC STRATEGIES:")
+    cols_to_show = ["Strategy", "Selling Price (₹)", "Clearance (%)", "Leftover Stock (Units)", "Expected Net Profit (₹)", "Profit Lift vs Status Quo (₹)"]
+    print(bench_df[cols_to_show].to_string(index=False))
+
+    return result
 
 def main():
-    """Run the complete Smart Pricing Engine pipeline."""
+    parser = argparse.ArgumentParser(description="AI-Powered Dynamic Pricing & Inventory Optimization Engine")
+    parser.add_argument("--generate-data", action="store_true", help="Generate synthetic retail dataset")
+    parser.add_argument("--train", action="store_true", help="Train forecasting and elasticity models")
+    parser.add_argument("--demo", action="store_true", help="Run flagship showcase demonstration")
+    parser.add_argument("--all", action="store_true", help="Execute complete pipeline")
 
-    print("\n" + "🎯 " * 15)
-    print("     AI SMART PRICING ENGINE — Full Pipeline")
-    print("🎯 " * 15)
+    args = parser.parse_args()
 
-    # ── Step 1: Generate Synthetic Data ──────────────────────────
-    print_header("STEP 1/5 — Generating Synthetic Sales Data")
-
-    from src.data.generate_synthetic_data import SyntheticDataGenerator
-    from src.utils.config import RAW_DATA_DIR, PRODUCT_CATALOG
-
-    generator = SyntheticDataGenerator()
-    df_raw = generator.generate()
-
-    output_path = RAW_DATA_DIR / "sales_data.csv"
-    df_raw.to_csv(output_path, index=False)
-    print(f"  ✅ Generated {len(df_raw):,} rows of sales data")
-    print(f"  📁 Saved to: {output_path}")
-    print(f"  📦 Products: {df_raw['product_id'].nunique()}")
-    print(f"  📅 Date range: {df_raw['date'].min()} → {df_raw['date'].max()}")
-
-    # ── Step 2: Clean Data & Engineer Features ───────────────────
-    print_header("STEP 2/5 — Cleaning Data & Engineering Features")
-
-    from src.data.data_pipeline import DataPipeline
-    from src.data.feature_engineering import FeatureEngineer
-
-    pipeline = DataPipeline()
-    df_clean = pipeline.clean_data(df_raw)
-    print(f"  ✅ Cleaned data: {len(df_clean):,} rows")
-
-    engineer = FeatureEngineer()
-    df_feat = engineer.create_features(df_clean)
-    print(f"  ✅ Engineered features: {df_feat.shape[1]} columns")
-
-    # Time-based split
-    train_df, val_df, test_df = pipeline.split_data(df_feat)
-    print(f"  📊 Train: {len(train_df):,} | Val: {len(val_df):,} | Test: {len(test_df):,}")
-
-    # ── Step 3: Train Demand Forecaster ──────────────────────────
-    print_header("STEP 3/5 — Training LightGBM Demand Forecaster")
-
-    from src.models.demand_forecaster import DemandForecaster
-    from src.models.model_evaluator import ModelEvaluator
-    from src.utils.config import ALL_FEATURES, TARGET_COLUMN, MODELS_DIR
-
-    feature_cols = [c for c in ALL_FEATURES if c in train_df.columns]
-
-    # Encode categoricals
-    for col in ["product_category", "season"]:
-        if col in train_df.columns:
-            for _df in [train_df, val_df, test_df]:
-                _df[col] = _df[col].astype("category")
-
-    X_train = train_df[feature_cols]
-    y_train = train_df[TARGET_COLUMN]
-    X_val = val_df[feature_cols]
-    y_val = val_df[TARGET_COLUMN]
-    X_test = test_df[feature_cols]
-    y_test = test_df[TARGET_COLUMN]
-
-    model = DemandForecaster()
-    model.train(X_train, y_train, X_val, y_val)
-    print(f"  ✅ LightGBM model trained")
-
-    # Evaluate
-    evaluator = ModelEvaluator()
-    y_pred_test = model.predict(X_test)
-    metrics = evaluator.evaluate("LightGBM", y_test.values, y_pred_test)
-    print(f"  📊 Test Metrics:")
-    print(f"      RMSE:  {metrics['rmse']:.2f}")
-    print(f"      MAE:   {metrics['mae']:.2f}")
-    print(f"      MAPE:  {metrics['mape']:.1f}%")
-    print(f"      R²:    {metrics['r2']:.4f}")
-
-    # Feature importance
-    importance = model.get_feature_importance()
-    print(f"\n  🔑 Top 5 Features:")
-    for _, row in importance.head(5).iterrows():
-        print(f"      {row['feature']:<30s} {row['importance']:.0f}")
-
-    # Save model
-    model.save(str(MODELS_DIR / "lgbm_demand_model.pkl"))
-    print(f"  💾 Model saved to models/lgbm_demand_model.pkl")
-
-    # ── Step 4: Estimate Price Elasticity ────────────────────────
-    print_header("STEP 4/5 — Estimating Price Elasticity")
-
-    from src.models.elasticity_estimator import ElasticityEstimator
-
-    elasticity_model = ElasticityEstimator()
-    elasticity_model.fit(df_feat)
-    overall_beta = elasticity_model.get_elasticity()
-    print(f"  ✅ Overall price elasticity (β): {overall_beta:.3f}")
-
-    cat_elasticities = elasticity_model.fit_by_category(df_feat)
-    print(f"\n  📊 Category-Level Elasticities:")
-    for cat, beta in sorted(cat_elasticities.items(), key=lambda x: -abs(x[1])):
-        bar = "█" * int(abs(beta) * 10)
-        label = "Elastic" if abs(beta) > 1 else "Inelastic"
-        print(f"      {cat:<20s}  β = {beta:>6.3f}  {bar}  ({label})")
-
-    elasticity_model.save(str(MODELS_DIR / "elasticity_model.pkl"))
-    print(f"  💾 Elasticity model saved")
-
-    # ── Step 5: Optimize Prices ──────────────────────────────────
-    print_header("STEP 5/5 — Finding Optimal Prices")
-
-    from src.optimization.price_optimizer import PriceOptimizer
-
-    print("\n  🎯 AI PRICING RECOMMENDATIONS")
-    print("  " + "─" * 47)
-
-    for prod_id, prod_info in PRODUCT_CATALOG.items():
-        cost = prod_info["cost_price"]
-        current_price = prod_info["base_price"]
-        competitor = prod_info["competitor_base_price"]
-
-        optimizer = PriceOptimizer(
-            demand_model=model,
-            cost_price=cost,
-            min_price=cost * 1.1,
-            max_price=cost * 5.0,
-        )
-
-        # Build base features from median of training data for this product
-        prod_mask = train_df["product_id"] == prod_id if "product_id" in train_df.columns else pd.Series([True] * len(train_df))
-        prod_data = train_df[prod_mask]
-
-        if len(prod_data) == 0:
-            prod_data = train_df
-
-        base_features = {}
-        for col in feature_cols:
-            if col in prod_data.columns:
-                if prod_data[col].dtype.name == "category":
-                    base_features[col] = prod_data[col].mode().iloc[0] if len(prod_data[col].mode()) > 0 else prod_data[col].iloc[0]
-                else:
-                    base_features[col] = prod_data[col].median()
-
-        # Override with known values
-        base_features["cost_price"] = cost
-        base_features["competitor_price"] = competitor
-
-        try:
-            result = optimizer.optimize(base_features, competitor_price=competitor)
-            comparison = optimizer.compare_with_current(
-                current_price, base_features, competitor_price=competitor
-            )
-            print_product_card(prod_info["name"], result, comparison)
-        except Exception as e:
-            print(f"\n  ⚠️  {prod_info['name']}: Optimization failed — {e}")
-
-    # ── Summary ──────────────────────────────────────────────────
-    print_header("PIPELINE COMPLETE ✅")
-    print(f"""
-  📊 Data:          {len(df_raw):,} rows generated & processed
-  🤖 Model:         LightGBM (R² = {metrics['r2']:.3f}, MAPE = {metrics['mape']:.1f}%)
-  📈 Elasticity:    {len(cat_elasticities)} categories analyzed
-  💰 Optimization:  {len(PRODUCT_CATALOG)} products optimized
-  
-  Next steps:
-    → Run 'streamlit run dashboard/app.py' for the interactive dashboard
-    → Check models/ for saved model artifacts
-    → Check data/raw/sales_data.csv for the generated data
-""")
-
+    if len(sys.argv) == 1 or args.all:
+        run_data_generation()
+        forecaster, _, _ = run_training()
+        run_showcase_demo(forecaster)
+    else:
+        if args.generate_data:
+            run_data_generation()
+        if args.train:
+            run_training()
+        if args.demo:
+            forecaster = DemandForecaster()
+            run_showcase_demo(forecaster)
 
 if __name__ == "__main__":
     main()
