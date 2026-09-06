@@ -19,11 +19,19 @@ CURRENCY_STR = "₹"
 
 from src.data.generate_synthetic_data import SyntheticDataGenerator
 from src.data.data_pipeline import DataPipeline
+from src.data.kaggle_pipeline import KaggleRetailPipeline
 from src.models.demand_forecaster import DemandForecaster
 from src.models.elasticity_estimator import ElasticityEstimator
 from src.optimization.lifecycle_optimizer import LifecycleOptimizer
 from src.explainability.reason_generator import ReasonGenerator
 from src.evaluation.baseline_benchmarking import BaselineBenchmarking
+
+def run_kaggle():
+    print("=" * 70)
+    print("EXECUTING KAGGLE RETAIL PRICE DATASET PIPELINE")
+    print("=" * 70)
+    kaggle_pipe = KaggleRetailPipeline()
+    return kaggle_pipe.run_kaggle_pipeline()
 
 def run_data_generation():
     print("=" * 70)
@@ -142,6 +150,7 @@ def main():
     parser.add_argument("--generate-data", action="store_true", help="Generate synthetic retail dataset")
     parser.add_argument("--train", action="store_true", help="Train forecasting and elasticity models")
     parser.add_argument("--demo", action="store_true", help="Run flagship showcase demonstration")
+    parser.add_argument("--kaggle", action="store_true", help="Download Kaggle dataset & train demand/elasticity models on it")
     parser.add_argument("--all", action="store_true", help="Execute complete pipeline")
 
     args = parser.parse_args()
@@ -155,6 +164,8 @@ def main():
             run_data_generation()
         if args.train:
             run_training()
+        if args.kaggle:
+            run_kaggle()
         if args.demo:
             forecaster = DemandForecaster()
             run_showcase_demo(forecaster)

@@ -137,6 +137,9 @@ python main.py --generate-data
 
 # Re-train LightGBM demand forecaster & price elasticity models
 python main.py --train
+
+# Ingest Kaggle retail price optimization dataset & train model on it
+python main.py --kaggle
 ```
 
 ---

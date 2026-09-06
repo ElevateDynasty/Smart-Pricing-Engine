@@ -2,6 +2,21 @@
 # AI Smart Pricing Engine — .gitignore
 # =============================================================================
 
+# ---- Security, Secrets & API Credentials (NEVER COMMIT) ----
+.env
+.env.*
+*.env
+*.key
+*.pem
+*.pfx
+*.p12
+*.token
+*secret*
+*credential*
+kaggle.json
+.kaggle/
+.streamlit/secrets.toml
+
 # ---- Python ----
 __pycache__/
 *.py[cod]
@@ -24,45 +39,49 @@ env/
 *.swo
 *.code-workspace
 
-# ---- Generated data files ----
-data/raw/*.csv
-data/processed/*.csv
-data/processed/*.parquet
+# ---- Generated data files & raw downloads ----
+data/raw/
+data/processed/
+*.zip
+*.tar.gz
 
-# ---- Trained model artifacts ----
-models/*.pkl
-models/*.json
-models/*.txt
-models/*.joblib
+# ---- Trained model artifacts & binaries ----
+models_saved/
+models/
+*.joblib
+*.pkl
+*.pickle
+*.h5
+*.onnx
 
-# ---- Reports (generated) ----
+# ---- Reports & logs ----
 reports/figures/*.png
 reports/figures/*.html
+*.log
 
 # ---- OS files ----
 .DS_Store
 Thumbs.db
 desktop.ini
 
-# ---- Jupyter ----
+# ---- Jupyter & Testing ----
 .ipynb_checkpoints/
+.pytest_cache/
 
 # ---- Streamlit ----
 .streamlit/
 
-# ---- Non-project folders (keep out of repo) ----
+# ---- Non-project / working folders ----
 Basic/
 Pre Implementation Plan/
 implementation_plan.md
 _legacy_archive/
-models_saved/
-.pytest_cache/
 *.tex
 *.aux
-*.log
 *.synctex.gz
 *.fls
 *.fdb_latexmk
 *.out
 *.toc
 *.docx
+
