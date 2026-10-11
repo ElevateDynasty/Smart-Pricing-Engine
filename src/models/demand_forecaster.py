@@ -76,14 +76,19 @@ class DemandForecaster:
 
         # Evaluate on validation
         preds = np.maximum(0, self.model.predict(X_val))
+        residuals = y_val - preds
         mae = float(mean_absolute_error(y_val, preds))
         rmse = float(np.sqrt(mean_squared_error(y_val, preds)))
         r2 = float(r2_score(y_val, preds))
+        res_p10 = float(np.percentile(residuals, 10))
+        res_p90 = float(np.percentile(residuals, 90))
 
         self.metrics = {
             "mae": round(mae, 3),
             "rmse": round(rmse, 3),
             "r2": round(r2, 3),
+            "res_p10": round(res_p10, 3),
+            "res_p90": round(res_p90, 3),
             "train_samples": len(X_train),
             "val_samples": len(y_val),
             "split_strategy": "time-ordered 80/20 (leakage-free)",
@@ -146,8 +151,9 @@ class DemandForecaster:
         is_weekend: int = 0,
         is_festive_season: int = 0,
         day_of_week: int = 2,
-        month: int = 9
-    ) -> float:
+        month: int = 9,
+        return_interval: bool = False
+    ):
         """
         Predict expected daily demand for a specific price & context point.
 
@@ -157,6 +163,7 @@ class DemandForecaster:
           - competitor_stockout_flag=0 (competitors assumed in-stock)
           - footfall_index=1.2 (baseline store footfall multiplier)
           - day_of_week=2, month=9 (Wednesday, September baseline)
+        If return_interval=True, returns (expected_demand, lower_p10, upper_p90).
         """
         if self.model is None:
             self.load()
@@ -168,7 +175,14 @@ class DemandForecaster:
             day_of_week, month
         )
         pred = float(self.model.predict(row)[0])
-        return max(0.0, pred)
+        val = max(0.0, pred)
+        if not return_interval:
+            return val
+
+        rmse = float(self.metrics.get("rmse", 2.0))
+        p10 = float(self.metrics.get("res_p10", -1.28 * rmse))
+        p90 = float(self.metrics.get("res_p90", 1.28 * rmse))
+        return val, max(0.0, val + p10), max(0.0, val + p90)
 
     def explain_point(
         self,
@@ -233,8 +247,9 @@ class DemandForecaster:
         opening_inventory: int,
         days_to_successor: int = 60,
         competitor_stockout_flag: int = 0,
-        footfall_index: float = 1.2
-    ) -> np.ndarray:
+        footfall_index: float = 1.2,
+        return_intervals: bool = False
+    ):
         """Evaluate demand across an array of candidate prices."""
         if self.model is None:
             self.load()
@@ -261,8 +276,16 @@ class DemandForecaster:
             })
 
         features_df = pd.DataFrame(rows)[self.feature_names]
-        preds = self.model.predict(features_df)
-        return np.maximum(0.0, preds)
+        preds = np.maximum(0.0, self.model.predict(features_df))
+        if not return_intervals:
+            return preds
+
+        rmse = float(self.metrics.get("rmse", 2.0))
+        p10 = float(self.metrics.get("res_p10", -1.28 * rmse))
+        p90 = float(self.metrics.get("res_p90", 1.28 * rmse))
+        preds_lo = np.maximum(0.0, preds + p10)
+        preds_hi = np.maximum(0.0, preds + p90)
+        return preds, preds_lo, preds_hi
 
     def save(self, filepath: Optional[Path] = None):
         """Persist model and metadata to disk."""

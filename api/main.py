@@ -29,6 +29,11 @@ app.add_middleware(
 # Include API routes
 app.include_router(analytics.router, prefix="/api", tags=["analytics"])
 
+@app.get("/health")
+@app.get("/api/health")
+def health_check():
+    return {"status": "healthy", "service": "AI Smart Pricing Engine"}
+
 # Mount frontend directory for static file serving
 frontend_path = root_dir / "frontend"
 if frontend_path.exists():

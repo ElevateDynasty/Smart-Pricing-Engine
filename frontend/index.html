@@ -5,15 +5,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="Enterprise AI Dynamic Pricing & Inventory Lifecycle Optimization Engine for Consumer Electronics Retail.">
     <title>ApexPricing | Enterprise Pricing & Lifecycle Engine</title>
-    
+
     <!-- Preconnect & Fonts: Outfit (Display) & JetBrains Mono (Data) & Inter (Body) -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
-    
+
     <!-- FontAwesome for High-Precision Glyphs -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" integrity="sha512-iecdLmaskl7CVkqkXNQ/ZH/XLlvWZOJyj7Yy7tcenmpD1ypASozpmT/E0iPtmFIB46ZmdtAc9eNBvH0H/ZpiBw==" crossorigin="anonymous" referrerpolicy="no-referrer" />
-    
+
     <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 
@@ -21,10 +21,13 @@
     <link rel="stylesheet" href="./css/style.css">
 </head>
 <body class="terminal-dark">
+    <!-- Keyboard Escape Hatch -->
+    <a class="skip-link" href="#views-container">Skip to main content</a>
+
     <!-- Scroll Progress Indicator -->
     <div id="scroll-progress" class="scroll-progress" aria-hidden="true"></div>
 
-    <!-- Ambient Background FX Layer (CSS-driven drift) -->
+    <!-- Ambient Background FX Layer -->
     <div class="bg-fx" aria-hidden="true">
         <div class="fx-orb fx-orb-a"></div>
         <div class="fx-orb fx-orb-b"></div>
@@ -37,7 +40,7 @@
             <span class="mono-symbol">AP</span>
             <span class="brand-wordmark">ApexPricing</span>
         </div>
-        <button id="mobile-menu-toggle" class="btn-terminal-icon" aria-label="Toggle Navigation Menu">
+        <button id="mobile-menu-toggle" class="btn-terminal-icon" aria-label="Toggle navigation menu" aria-expanded="false" aria-controls="sidebar">
             <i class="fa-solid fa-bars-staggered"></i>
         </button>
     </header>
@@ -47,7 +50,7 @@
         <div id="sidebar-backdrop" class="sidebar-backdrop"></div>
 
         <!-- Desktop Command Sidebar -->
-        <aside id="sidebar" class="sidebar">
+        <aside id="sidebar" class="sidebar" aria-label="Application sidebar">
             <div class="sidebar-top">
                 <div class="brand-lockup">
                     <div class="brand-icon-box">
@@ -79,33 +82,46 @@
                         <span class="telemetry-val mono-num" id="telemetry-dataset">SYNTHETIC</span>
                     </div>
                 </div>
-            </div>
 
-            <nav class="nav-system">
-                <div class="nav-header-label">CONTROL PLANES</div>
-                <ul class="nav-list">
-                    <li class="active" data-view="overview" id="nav-overview">
-                        <i class="fa-solid fa-chart-line"></i>
-                        <span>Portfolio Summary</span>
-                    </li>
-                    <li data-view="sku-pricing" id="nav-sku-pricing">
-                        <i class="fa-solid fa-table-cells-large"></i>
-                        <span>SKU Matrix</span>
-                    </li>
-                    <li data-view="simulator" id="nav-simulator">
-                        <i class="fa-solid fa-bezier-curve"></i>
-                        <span>Elasticity Simulator</span>
-                    </li>
-                    <li data-view="competitors" id="nav-competitors">
-                        <i class="fa-solid fa-radar"></i>
-                        <span>Market Intelligence</span>
-                    </li>
-                    <li data-view="transfers" id="nav-transfers">
-                        <i class="fa-solid fa-right-left"></i>
-                        <span>Store Balancing</span>
-                    </li>
-                </ul>
-            </nav>
+                <nav class="nav-system" aria-label="Control planes">
+                    <div class="nav-header-label">
+                        <span>Control Planes</span>
+                        <span class="mono-num">1&ndash;5</span>
+                    </div>
+                    <ul class="nav-list">
+                        <li class="active" data-view="overview" id="nav-overview">
+                            <a href="#overview">
+                                <i class="fa-solid fa-chart-line"></i>
+                                <span>Executive Overview</span>
+                            </a>
+                        </li>
+                        <li data-view="sku-pricing" id="nav-sku-pricing">
+                            <a href="#sku-pricing">
+                                <i class="fa-solid fa-table-cells-large"></i>
+                                <span>SKU Matrix</span>
+                            </a>
+                        </li>
+                        <li data-view="simulator" id="nav-simulator">
+                            <a href="#simulator">
+                                <i class="fa-solid fa-bezier-curve"></i>
+                                <span>Elasticity Simulator</span>
+                            </a>
+                        </li>
+                        <li data-view="competitors" id="nav-competitors">
+                            <a href="#competitors">
+                                <i class="fa-solid fa-radar"></i>
+                                <span>Market Intelligence</span>
+                            </a>
+                        </li>
+                        <li data-view="transfers" id="nav-transfers">
+                            <a href="#transfers">
+                                <i class="fa-solid fa-right-left"></i>
+                                <span>Store Balancing</span>
+                            </a>
+                        </li>
+                    </ul>
+                </nav>
+            </div>
 
             <div class="sidebar-bottom">
                 <div class="quick-recalc-box">
@@ -120,13 +136,13 @@
         </aside>
 
         <!-- Main Surface -->
-        <main class="main-surface">
+        <main class="main-surface" id="main-content">
             <!-- Global Utility Bar -->
             <header class="utility-bar">
                 <div class="utility-left">
                     <span class="scope-tag">REGION: INDIA ELECTRONICS</span>
                     <span class="scope-divider">/</span>
-                    <span class="active-scope-name" id="current-view-title">Portfolio Summary</span>
+                    <span class="active-scope-name" id="current-view-title">Executive Overview</span>
                 </div>
                 <div class="utility-right">
                     <span class="clock-display mono-num" id="live-clock">--:--:--</span>
@@ -134,6 +150,11 @@
                         <button class="source-btn active" id="src-synthetic" onclick="app.switchDataSource('synthetic')">SYNTHETIC</button>
                         <button class="source-btn" id="src-kaggle" onclick="app.switchDataSource('kaggle')">REAL KAGGLE</button>
                     </div>
+                    <button class="kbd-hint" id="cmdk-open" aria-label="Open command palette">
+                        <i class="fa-solid fa-magnifying-glass"></i>
+                        <span>Jump to</span>
+                        <kbd>Ctrl</kbd><kbd>K</kbd>
+                    </button>
                     <button class="btn btn-outline btn-sm" onclick="app.openLaunchModal()">
                         <i class="fa-solid fa-bolt text-accent"></i> Simulate Launch Signal
                     </button>
@@ -164,7 +185,7 @@
                 </div>
             </section>
 
-            <!-- Skeletal Loader Container (Replaces generic circular spinners) -->
+            <!-- Skeletal Loader Container -->
             <div id="loading-overlay" class="skeletal-overlay hidden">
                 <div class="skeletal-shimmer-card">
                     <div class="shimmer-line title-shimmer"></div>
@@ -178,10 +199,10 @@
             </div>
 
             <!-- Multi-View Container -->
-            <div id="views-container">
+            <div id="views-container" tabindex="-1">
                 <!-- 1. Overview View -->
-                <section id="view-overview" class="view active">
-                    <!-- Asymmetric Terminal Header -->
+                <section id="view-overview" class="view active" aria-labelledby="overview-headline">
+                    <!-- Editorial Page Head -->
                     <div class="terminal-banner">
                         <div class="banner-content-col">
                             <div class="metadata-crumbs">
@@ -189,8 +210,8 @@
                                 <span>&bull;</span>
                                 <span>MULTI-STORE RETAIL HARNESS</span>
                             </div>
-                            <h1 class="display-headline">
-                                Lifecycle Profit Maximization & Clearance Balancing
+                            <h1 class="display-headline" id="overview-headline">
+                                Lifecycle Profit Maximization &amp; Clearance Balancing
                             </h1>
                             <p class="editorial-subtext">
                                 Dynamically determines optimal selling prices across retail stock by balancing empirical price elasticity against inventory holding costs, financing charges, and imminent successor depreciation write-downs.
@@ -198,17 +219,17 @@
                         </div>
                     </div>
 
-                    <!-- Integrated Architectural Metric Ribbon (Anti-Card Overuse) -->
+                    <!-- Integrated Metric Ribbon (Anti-Card Overuse) -->
                     <div class="metric-ribbon">
                         <div class="metric-strip-item">
                             <span class="metric-ribbon-label">PROJECTED PROFIT LIFT</span>
-                            <div class="metric-ribbon-val text-success mono-num" id="kpi-profit-lift">₹0</div>
+                            <div class="metric-ribbon-val text-success mono-num" id="kpi-profit-lift">&plusmn;&#8377;0</div>
                             <span class="metric-ribbon-delta text-success" id="kpi-profit-lift-pct">+0.0% vs Status Quo</span>
                         </div>
                         <div class="metric-strip-item">
                             <span class="metric-ribbon-label">PORTFOLIO INVENTORY</span>
                             <div class="metric-ribbon-val mono-num" id="kpi-inventory-units">0</div>
-                            <span class="metric-ribbon-delta text-subtle" id="kpi-inventory-value">Catalog Value: ₹0</span>
+                            <span class="metric-ribbon-delta text-subtle" id="kpi-inventory-value">Catalog Value: &#8377;0</span>
                         </div>
                         <div class="metric-strip-item">
                             <span class="metric-ribbon-label">TRACKED CATALOG SKUS</span>
@@ -221,7 +242,7 @@
                             <span class="metric-ribbon-delta text-warning" id="kpi-risk-subtext">Urgent Clearance Horizon</span>
                         </div>
                     </div>
-                    
+
                     <!-- Split Analytical Section -->
                     <div class="split-analytics-grid">
                         <div class="architectural-panel">
@@ -230,10 +251,10 @@
                                     <h3 class="panel-title">Net Profit Distribution by SKU</h3>
                                     <p class="panel-subtitle">Status Quo baseline vs. AI Constrained Lifecycle Optimization</p>
                                 </div>
-                                <span class="mono-badge badge-accent">+129.6% Total Gain</span>
+                                <span class="mono-badge badge-accent" id="total-gain-badge">Total Gain</span>
                             </div>
                             <div class="chart-canvas-wrapper">
-                                <canvas id="profitComparisonChart"></canvas>
+                                <canvas id="profitComparisonChart" aria-label="Net profit distribution by SKU" role="img"></canvas>
                             </div>
                         </div>
 
@@ -241,12 +262,12 @@
                             <div class="panel-header">
                                 <div>
                                     <h3 class="panel-title">Pricing Policy Breakdown</h3>
-                                    <p class="panel-subtitle">Algorithmic distribution across catalog</p>
+                                    <p class="panel-subtitle">Algorithmic distribution across catalogue</p>
                                 </div>
                                 <span class="mono-badge">Solver: LGBM Demand + Constrained Grid Search</span>
                             </div>
                             <div class="chart-canvas-wrapper doughnut-fit">
-                                <canvas id="actionDistributionChart"></canvas>
+                                <canvas id="actionDistributionChart" aria-label="Pricing policy distribution" role="img"></canvas>
                             </div>
                         </div>
                     </div>
@@ -264,15 +285,16 @@
                         </div>
                         <div class="table-container-scroll">
                             <table class="terminal-table">
+                                <caption class="sr-only">Prioritized strategic pricing opportunities</caption>
                                 <thead>
                                     <tr>
-                                        <th>PRODUCT & VARIANT</th>
-                                        <th>CURRENT PRICE</th>
-                                        <th>RECOMMENDED</th>
-                                        <th>EXPECTED LIFT</th>
-                                        <th>STRATEGY</th>
-                                        <th>CLEARANCE PROB</th>
-                                        <th>ACTION</th>
+                                        <th scope="col">PRODUCT &amp; VARIANT</th>
+                                        <th scope="col">CURRENT PRICE</th>
+                                        <th scope="col">RECOMMENDED</th>
+                                        <th scope="col">EXPECTED LIFT</th>
+                                        <th scope="col">STRATEGY</th>
+                                        <th scope="col">CLEARANCE PROB</th>
+                                        <th scope="col">ACTION</th>
                                     </tr>
                                 </thead>
                                 <tbody id="top-opportunities-body">
@@ -284,10 +306,10 @@
                 </section>
 
                 <!-- 2. SKU Pricing Matrix View -->
-                <section id="view-sku-pricing" class="view hidden">
+                <section id="view-sku-pricing" class="view hidden" aria-labelledby="sku-matrix-headline">
                     <div class="view-header-strip">
                         <div>
-                            <h2 class="section-headline">Catalog SKU Matrix</h2>
+                            <h2 class="section-headline" id="sku-matrix-headline">Catalog SKU Matrix</h2>
                             <p class="section-subtext">Optimal price points bounded strictly by Legal Metrology Maximum Retail Price caps.</p>
                         </div>
                         <div class="header-actions">
@@ -301,10 +323,10 @@
                     <div class="filter-wire-toolbar">
                         <div class="search-terminal-input">
                             <i class="fa-solid fa-magnifying-glass search-glyph"></i>
-                            <input type="text" id="sku-search-input" placeholder="Search by model, brand, or SKU identifier..." oninput="app.filterTable()">
+                            <input type="text" id="sku-search-input" placeholder="Search by model, brand, or SKU identifier..." aria-label="Search catalogue" oninput="app.filterTable()">
                         </div>
                         <div class="filter-controls-cluster">
-                            <select id="brand-filter" class="terminal-select" onchange="app.filterTable()">
+                            <select id="brand-filter" class="terminal-select" aria-label="Filter by brand" onchange="app.filterTable()">
                                 <option value="all">Brand: All</option>
                                 <option value="Apple">Apple</option>
                                 <option value="Samsung">Samsung</option>
@@ -312,18 +334,20 @@
                                 <option value="OnePlus">OnePlus</option>
                                 <option value="Xiaomi">Xiaomi</option>
                             </select>
-                            <select id="action-filter" class="terminal-select" onchange="app.filterTable()">
+                            <select id="action-filter" class="terminal-select" aria-label="Filter by pricing action" onchange="app.filterTable()">
                                 <option value="all">Action: All</option>
                                 <option value="Increase Price">Price Increases</option>
                                 <option value="Hold Price">Hold Price</option>
                                 <option value="Slight Reduction">Slight Reduction</option>
                                 <option value="Clearance Markdown">Clearance Markdown</option>
+                                <option value="No Stock">No Stock</option>
                             </select>
-                            <select id="risk-filter" class="terminal-select" onchange="app.filterTable()">
+                            <select id="risk-filter" class="terminal-select" aria-label="Filter by inventory risk" onchange="app.filterTable()">
                                 <option value="all">Risk: All</option>
                                 <option value="Low Risk">Low Risk</option>
                                 <option value="Medium Risk">Medium Risk</option>
                                 <option value="High Risk">High Risk</option>
+                                <option value="Stockout">Stockout</option>
                             </select>
                         </div>
                     </div>
@@ -332,16 +356,17 @@
                     <div class="architectural-panel">
                         <div class="table-container-scroll">
                             <table class="terminal-table">
+                                <caption class="sr-only">Catalogue of SKUs with AI optimal prices</caption>
                                 <thead>
                                     <tr>
-                                        <th>PRODUCT IDENTIFIER</th>
-                                        <th>CURRENT</th>
-                                        <th>AI OPTIMAL</th>
-                                        <th>NET LIFT</th>
-                                        <th>HORIZON RUN-RATE</th>
-                                        <th>INVENTORY STATE</th>
-                                        <th>LEGAL MRP</th>
-                                        <th>AUDIT</th>
+                                        <th scope="col">PRODUCT IDENTIFIER</th>
+                                        <th scope="col">CURRENT</th>
+                                        <th scope="col">AI OPTIMAL</th>
+                                        <th scope="col">NET LIFT</th>
+                                        <th scope="col">HORIZON RUN-RATE</th>
+                                        <th scope="col">INVENTORY STATE</th>
+                                        <th scope="col">LEGAL MRP</th>
+                                        <th scope="col">AUDIT</th>
                                     </tr>
                                 </thead>
                                 <tbody id="sku-table-body">
@@ -353,10 +378,10 @@
                 </section>
 
                 <!-- 3. Demand & Elasticity Simulator View -->
-                <section id="view-simulator" class="view hidden">
+                <section id="view-simulator" class="view hidden" aria-labelledby="simulator-headline">
                     <div class="view-header-strip">
                         <div>
-                            <h2 class="section-headline">Empirical Elasticity & Demand Simulator</h2>
+                            <h2 class="section-headline" id="simulator-headline">Empirical Elasticity &amp; Demand Simulator</h2>
                             <p class="section-subtext">Simulate real-time revenue and net margin responses across candidate pricing tiers.</p>
                         </div>
                     </div>
@@ -378,35 +403,35 @@
                             <div class="slider-instrument mt-5">
                                 <div class="instrument-readout">
                                     <span class="instrument-label">CANDIDATE PRICE</span>
-                                    <span class="instrument-number mono-num" id="sim-price-display">₹78,500</span>
+                                    <span class="instrument-number mono-num" id="sim-price-display">&#8377;78,500</span>
                                 </div>
-                                <input type="range" id="sim-price-slider" class="terminal-slider" min="50000" max="90000" step="100" oninput="app.onSliderChange()">
+                                <input type="range" id="sim-price-slider" class="terminal-slider" min="50000" max="90000" step="100" aria-label="Candidate selling price" oninput="app.onSliderChange()">
                                 <div class="instrument-bounds mono-num">
-                                    <span id="sim-min-price">Cost: ₹0</span>
-                                    <span id="sim-mrp-price" class="text-warning">MRP: ₹0</span>
+                                    <span id="sim-min-price">Cost: &#8377;0</span>
+                                    <span id="sim-mrp-price" class="text-warning">MRP: &#8377;0</span>
                                 </div>
                             </div>
 
                             <div class="stepper-cluster mt-3">
-                                <button class="btn btn-outline btn-xs" onclick="app.setSimPriceRel(-2000)">-₹2,000</button>
-                                <button class="btn btn-outline btn-xs" onclick="app.setSimPriceRel(-500)">-₹500</button>
+                                <button class="btn btn-outline btn-xs" onclick="app.setSimPriceRel(-2000)">-&#8377;2,000</button>
+                                <button class="btn btn-outline btn-xs" onclick="app.setSimPriceRel(-500)">-&#8377;500</button>
                                 <button class="btn btn-accent btn-xs" onclick="app.resetSimToRecommended()">AI Optimal</button>
-                                <button class="btn btn-outline btn-xs" onclick="app.setSimPriceRel(+500)">+₹500</button>
-                                <button class="btn btn-outline btn-xs" onclick="app.setSimPriceRel(+2000)">+₹2,000</button>
+                                <button class="btn btn-outline btn-xs" onclick="app.setSimPriceRel(+500)">+&#8377;500</button>
+                                <button class="btn btn-outline btn-xs" onclick="app.setSimPriceRel(+2000)">+&#8377;2,000</button>
                             </div>
 
                             <div class="spec-matrix-box mt-5">
                                 <div class="spec-row">
                                     <span class="spec-key">ACQUISITION COST:</span>
-                                    <span class="spec-val mono-num" id="sim-unit-cost">₹0</span>
+                                    <span class="spec-val mono-num" id="sim-unit-cost">&#8377;0</span>
                                 </div>
                                 <div class="spec-row">
                                     <span class="spec-key">LEGAL MRP CEILING:</span>
-                                    <span class="spec-val mono-num" id="sim-mrp-limit">₹0</span>
+                                    <span class="spec-val mono-num" id="sim-mrp-limit">&#8377;0</span>
                                 </div>
                                 <div class="spec-row">
                                     <span class="spec-key">COMPETITOR AVG:</span>
-                                    <span class="spec-val mono-num" id="sim-comp-price">₹0</span>
+                                    <span class="spec-val mono-num" id="sim-comp-price">&#8377;0</span>
                                 </div>
                                 <div class="spec-row">
                                     <span class="spec-key">DAYS TO SUCCESSOR:</span>
@@ -428,11 +453,11 @@
                                 </div>
                                 <div class="telemetry-tile">
                                     <span class="tile-label">UNIT GROSS MARGIN</span>
-                                    <div class="tile-number mono-num text-accent" id="sim-result-margin">₹0</div>
+                                    <div class="tile-number mono-num text-accent" id="sim-result-margin">&#8377;0</div>
                                 </div>
                                 <div class="telemetry-tile">
                                     <span class="tile-label">HORIZON NET PROFIT</span>
-                                    <div class="tile-number mono-num text-success" id="sim-result-profit">₹0</div>
+                                    <div class="tile-number mono-num text-success" id="sim-result-profit">&#8377;0</div>
                                 </div>
                                 <div class="telemetry-tile">
                                     <span class="tile-label">EST. CLEARANCE TIME</span>
@@ -443,16 +468,16 @@
                             <div class="architectural-panel mt-4">
                                 <div class="panel-header">
                                     <div>
-                                        <h3 class="panel-title">Expected Profit & Demand Response Curve</h3>
+                                        <h3 class="panel-title">Expected Profit &amp; Demand Response Curve</h3>
                                         <p class="panel-subtitle">Curve peak balances price elasticity against holding costs and write-down risks</p>
                                     </div>
                                     <div class="legend-cluster">
-                                        <span class="legend-swatch bg-cyan"></span> <span class="mono-label">Profit (₹)</span>
+                                        <span class="legend-swatch bg-cyan"></span> <span class="mono-label">Profit (&#8377;)</span>
                                         <span class="legend-swatch bg-white ml-3"></span> <span class="mono-label">Demand (u/d)</span>
                                     </div>
                                 </div>
                                 <div class="chart-canvas-wrapper">
-                                    <canvas id="simulatorCurveChart"></canvas>
+                                    <canvas id="simulatorCurveChart" aria-label="Expected profit and demand response curve" role="img"></canvas>
                                 </div>
                             </div>
                         </div>
@@ -460,10 +485,10 @@
                 </section>
 
                 <!-- 4. Competitor Intelligence View -->
-                <section id="view-competitors" class="view hidden">
+                <section id="view-competitors" class="view hidden" aria-labelledby="competitors-headline">
                     <div class="view-header-strip">
                         <div>
-                            <h2 class="section-headline">Market Parity & Competitor Radar</h2>
+                            <h2 class="section-headline" id="competitors-headline">Market Parity &amp; Competitor Radar</h2>
                             <p class="section-subtext">Cross-channel positioning against Amazon, Flipkart, Croma, and Vijay Sales.</p>
                         </div>
                     </div>
@@ -471,15 +496,16 @@
                     <div class="architectural-panel">
                         <div class="table-container-scroll">
                             <table class="terminal-table">
+                                <caption class="sr-only">Competitor price positioning by product</caption>
                                 <thead>
                                     <tr>
-                                        <th>PRODUCT</th>
-                                        <th>OUR CURRENT</th>
-                                        <th>AI RECOMMENDATION</th>
-                                        <th>MARKET AVERAGE</th>
-                                        <th>MARKET FLOOR</th>
-                                        <th>LEGAL MRP</th>
-                                        <th>POSITIONING STRATEGY</th>
+                                        <th scope="col">PRODUCT</th>
+                                        <th scope="col">OUR CURRENT</th>
+                                        <th scope="col">AI RECOMMENDATION</th>
+                                        <th scope="col">MARKET AVERAGE</th>
+                                        <th scope="col">MARKET FLOOR</th>
+                                        <th scope="col">LEGAL MRP</th>
+                                        <th scope="col">POSITIONING STRATEGY</th>
                                     </tr>
                                 </thead>
                                 <tbody id="competitor-table-body">
@@ -491,10 +517,10 @@
                 </section>
 
                 <!-- 5. Multi-Store Balancing View -->
-                <section id="view-transfers" class="view hidden">
+                <section id="view-transfers" class="view hidden" aria-labelledby="transfers-headline">
                     <div class="view-header-strip">
                         <div>
-                            <h2 class="section-headline">Multi-Store Balancing Engine</h2>
+                            <h2 class="section-headline" id="transfers-headline">Multi-Store Balancing Engine</h2>
                             <p class="section-subtext">Profit-maximizing inter-store transfers solved as a transportation linear program (scipy HiGHS).</p>
                         </div>
                         <span class="mono-badge badge-accent">Solver: LP Transportation</span>
@@ -504,21 +530,22 @@
                         <div class="panel-header">
                             <div>
                                 <h3 class="panel-title">Recommended Transfer Plan</h3>
-                                <p class="panel-subtitle">Only transfers with positive net benefit after ₹250/unit logistics cost are proposed</p>
+                                <p class="panel-subtitle">Only transfers with positive net benefit after &#8377;250/unit logistics cost are proposed</p>
                             </div>
-                            <span class="mono-badge text-success" id="transfer-total-benefit">Net Benefit: ₹0</span>
+                            <span class="mono-badge text-success" id="transfer-total-benefit">Net Benefit: &#8377;0</span>
                         </div>
                         <div class="table-container-scroll">
                             <table class="terminal-table">
+                                <caption class="sr-only">Recommended inter-store transfers</caption>
                                 <thead>
                                     <tr>
-                                        <th>PRODUCT</th>
-                                        <th>FROM STORE</th>
-                                        <th>TO STORE</th>
-                                        <th>UNITS</th>
-                                        <th>LOGISTICS</th>
-                                        <th>NET BENEFIT</th>
-                                        <th>RATIONALE</th>
+                                        <th scope="col">PRODUCT</th>
+                                        <th scope="col">FROM STORE</th>
+                                        <th scope="col">TO STORE</th>
+                                        <th scope="col">UNITS</th>
+                                        <th scope="col">LOGISTICS</th>
+                                        <th scope="col">NET BENEFIT</th>
+                                        <th scope="col">RATIONALE</th>
                                     </tr>
                                 </thead>
                                 <tbody id="transfers-body">
@@ -537,15 +564,16 @@
                         </div>
                         <div class="table-container-scroll">
                             <table class="terminal-table">
+                                <caption class="sr-only">Store-level supply health</caption>
                                 <thead>
                                     <tr>
-                                        <th>PRODUCT</th>
-                                        <th>STORE</th>
-                                        <th>CITY</th>
-                                        <th>INVENTORY</th>
-                                        <th>VELOCITY</th>
-                                        <th>DAYS SUPPLY</th>
-                                        <th>STATUS</th>
+                                        <th scope="col">PRODUCT</th>
+                                        <th scope="col">STORE</th>
+                                        <th scope="col">CITY</th>
+                                        <th scope="col">INVENTORY</th>
+                                        <th scope="col">VELOCITY</th>
+                                        <th scope="col">DAYS SUPPLY</th>
+                                        <th scope="col">STATUS</th>
                                     </tr>
                                 </thead>
                                 <tbody id="store-health-body">
@@ -561,7 +589,7 @@
 
     <!-- Reason Explanation Drawer / Dialog (XAI) -->
     <div id="memo-modal" class="modal-backdrop hidden" onclick="app.closeModalOnBackdrop(event)">
-        <div class="modal-dialog-box">
+        <div class="modal-dialog-box" role="dialog" aria-modal="true" aria-label="Explainable AI audit">
             <div class="dialog-header">
                 <div class="dialog-badge">
                     <i class="fa-solid fa-microchip"></i> EXPLAINABLE AI AUDIT
@@ -584,7 +612,7 @@
 
     <!-- Tech Launch Event Ingestion Dialog -->
     <div id="launch-modal" class="modal-backdrop hidden" onclick="app.closeLaunchModalOnBackdrop(event)">
-        <div class="modal-dialog-box">
+        <div class="modal-dialog-box" role="dialog" aria-modal="true" aria-label="Tech launch ingestion">
             <div class="dialog-header">
                 <div class="dialog-badge">
                     <i class="fa-solid fa-satellite-dish"></i> TECH LAUNCH INGESTION WIRE
@@ -598,7 +626,7 @@
                     Simulate real-time ingestion of flagship keynote announcements. The AI adjusts the predecessor model's lifecycle window, applies empirical price elasticity models, and calculates optimal markdown timing before market prices collapse.
                 </p>
                 <div class="signal-event-list">
-                    <div class="signal-event-card" onclick="app.triggerTechEvent('iphone18')">
+                    <div class="signal-event-card" role="button" tabindex="0" onclick="app.triggerTechEvent('iphone18')">
                         <div class="signal-icon-box bg-apple">
                             <i class="fa-brands fa-apple"></i>
                         </div>
@@ -608,7 +636,7 @@
                         </div>
                         <button class="btn btn-primary btn-xs">Apply Signal &rarr;</button>
                     </div>
-                    <div class="signal-event-card" onclick="app.triggerTechEvent('galaxy_s27')">
+                    <div class="signal-event-card" role="button" tabindex="0" onclick="app.triggerTechEvent('galaxy_s27')">
                         <div class="signal-icon-box bg-samsung">
                             <i class="fa-solid fa-mobile-screen"></i>
                         </div>
@@ -618,7 +646,7 @@
                         </div>
                         <button class="btn btn-primary btn-xs">Apply Signal &rarr;</button>
                     </div>
-                    <div class="signal-event-card" onclick="app.triggerTechEvent('pixel11')">
+                    <div class="signal-event-card" role="button" tabindex="0" onclick="app.triggerTechEvent('pixel11')">
                         <div class="signal-icon-box bg-google">
                             <i class="fa-brands fa-google"></i>
                         </div>
@@ -639,7 +667,25 @@
         </div>
     </div>
 
-    <!-- Client Logic -->
+    <!-- Command Palette (Keyboard Navigation Layer) -->
+    <div class="cmdk-backdrop" id="cmdk-backdrop">
+        <div class="cmdk-panel" role="dialog" aria-modal="true" aria-label="Command palette">
+            <div class="cmdk-input-row">
+                <i class="fa-solid fa-magnifying-glass"></i>
+                <input type="text" id="cmdk-input" class="cmdk-input" placeholder="Jump to a view or run a command..." aria-label="Command palette input" autocomplete="off" spellcheck="false">
+                <kbd>ESC</kbd>
+            </div>
+            <div class="cmdk-list" id="cmdk-list" role="listbox" aria-label="Available commands"></div>
+            <div class="cmdk-foot">
+                <span><kbd>&uarr;</kbd><kbd>&darr;</kbd> navigate</span>
+                <span><kbd>&crarr;</kbd> open</span>
+                <span>quick keys 1&ndash;5</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Client Logic: application engine first, then the navigation shell that wraps it -->
     <script src="./js/app.js" defer></script>
+    <script src="./js/shell.js" defer></script>
 </body>
 </html>

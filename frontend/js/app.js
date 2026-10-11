@@ -105,16 +105,20 @@ const app = {
     animateKPIs() {
         const s = this.state.summary;
         if (!s) return;
+        const risks = s.risk_counts || {};
         const jobs = [
             { id: 'kpi-profit-lift', target: s.total_profit_lift || 0,
-              format: v => `+${this.formatCurrency(Math.round(v))}`, prefix: '+' },
-            { id: 'kpi-profit-lift-pct', target: s.avg_profit_lift_pct || 0,
-              format: v => `+${v.toFixed(1)}% vs Status Quo baseline` },
+              format: v => `${v >= 0 ? '+' : ''}${this.formatCurrency(Math.round(v))}` },
+            // `avg_profit_lift_pct` can legitimately be null (non-positive status-quo
+            // baseline). Counting up to 0 would render "+0.0%", claiming a break-even
+            // result we never measured — so fall through to the explicit wording.
+            { id: 'kpi-profit-lift-pct', target: s.avg_profit_lift_pct,
+              format: v => `${v >= 0 ? '+' : ''}${v.toFixed(1)}% vs Status Quo baseline` },
             { id: 'kpi-inventory-units', target: s.total_inventory_units || 0,
               format: v => `${Math.round(v).toLocaleString('en-IN')} units` },
             { id: 'kpi-total-skus', target: s.total_skus || 0,
               format: v => `${Math.round(v)} SKUs` },
-            { id: 'kpi-risk-skus', target: ((s.risk_counts || {})['High Risk'] || 0) + ((s.risk_counts || {})['Critical'] || 0) + ((s.risk_counts || {})['Medium Risk'] || 0),
+            { id: 'kpi-risk-skus', target: (risks['High Risk'] || 0) + (risks['Critical'] || 0) + (risks['Medium Risk'] || 0) + (risks['Stockout'] || 0),
               format: v => `${Math.round(v)} SKUs` }
         ];
 
@@ -123,11 +127,32 @@ const app = {
             if (!el) return;
             this.animateValue(el, 0, job.target, 950 + i * 120, job.format);
         });
+
+        // The two sub-labels are not animated; set them explicitly so the animation
+        // pass never leaves the static placeholder text in place.
+        const actionsEl = document.getElementById('kpi-actions-summary');
+        const acts = s.action_counts || {};
+        if (actionsEl) {
+            const markdowns = (acts['Clearance Markdown'] || 0) + (acts['Slight Reduction'] || 0);
+            const noStock = acts['No Stock'] || 0;
+            actionsEl.textContent = `${acts['Increase Price'] || 0} Increases | ${markdowns} Markdowns` +
+                (noStock ? ` | ${noStock} Out of Stock` : '');
+        }
+        const riskSubEl = document.getElementById('kpi-risk-subtext');
+        if (riskSubEl) {
+            riskSubEl.textContent = (risks['Stockout'] || 0)
+                ? `${risks['Medium Risk'] || 0} Medium | ${risks['High Risk'] || 0} High | ${risks['Stockout']} Out of Stock`
+                : `${risks['Medium Risk'] || 0} Medium | ${risks['High Risk'] || 0} High Urgency`;
+        }
     },
 
     animateValue(el, from, to, duration, format) {
         if (typeof to !== 'number' || !isFinite(to)) {
-            el.textContent = format ? format(to) : to;
+            // Null / non-finite targets are stated in words rather than animated,
+            // so an unavailable metric is never rendered as a confident 0.
+            el.textContent = (to === null || to === undefined)
+                ? 'baseline profit is non-positive'
+                : (format ? format(to) : to);
             return;
         }
         if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
@@ -156,7 +181,7 @@ const app = {
         const max = parseFloat(slider.max) || 1;
         const pct = ((parseFloat(slider.value) - min) / (max - min)) * 100;
         slider.style.background =
-            `linear-gradient(90deg, #0284c7 0%, #00e5ff ${Math.max(0, pct - 8)}%, var(--bg-surface) ${pct}%)`;
+            `linear-gradient(90deg, #0e9e96 0%, var(--accent-signal) ${Math.max(0, pct - 8)}%, var(--bg-subtle) ${pct}%)`;
     },
 
     popTile(id) {
@@ -205,8 +230,8 @@ const app = {
     switchView(viewId) {
         this.state.activeView = viewId;
 
-        // Update nav links
-        document.querySelectorAll('.nav-links li').forEach(l => {
+        // Update nav links (selector corrected: markup uses .nav-list)
+        document.querySelectorAll('.nav-list li').forEach(l => {
             if (l.getAttribute('data-view') === viewId) {
                 l.classList.add('active');
             } else {
@@ -247,6 +272,16 @@ const app = {
 
         // Re-arm scroll reveals for the newly active view
         requestAnimationFrame(() => this.prepareViewReveals(viewId));
+
+        // Keep the URL in sync so every view is deep-linkable and Back/Forward work.
+        // Navigation driven by the router (hashchange / popstate) must not add a new
+        // history entry, so shell.js raises suppressHistory for those calls.
+        if (window.history && typeof window.history.pushState === 'function') {
+            if ((window.location.hash || '') !== `#${viewId}`) {
+                const quiet = !!(window.shell && window.shell.suppressHistory);
+                window.history[quiet ? 'replaceState' : 'pushState']({ view: viewId }, '', `#${viewId}`);
+            }
+        }
     },
 
     async switchDataSource(source) {
@@ -463,21 +498,44 @@ const app = {
         const riskSkusEl = document.getElementById('kpi-risk-skus');
         const riskSubtextEl = document.getElementById('kpi-risk-subtext');
 
-        if (profitLiftEl) profitLiftEl.textContent = `+${this.formatCurrency(s.total_profit_lift)}`;
-        if (profitLiftPctEl) profitLiftPctEl.textContent = `+${s.avg_profit_lift_pct}% vs Status Quo baseline`;
+        if (profitLiftEl) profitLiftEl.textContent = `${s.total_profit_lift >= 0 ? '+' : ''}${this.formatCurrency(s.total_profit_lift)}`;
+        if (profitLiftPctEl) {
+            const pct = s.avg_profit_lift_pct;
+            profitLiftPctEl.textContent = (pct === null || pct === undefined)
+                ? 'baseline profit is non-positive' // the ratio is not meaningful here
+                : `${pct >= 0 ? '+' : ''}${pct}% vs Status Quo baseline`;
+        }
         if (invUnitsEl) invUnitsEl.textContent = `${(s.total_inventory_units || 0).toLocaleString('en-IN')} units`;
         if (invValEl) invValEl.textContent = `Catalog Value: ${this.formatCurrency(s.total_inventory_value)}`;
         if (totalSkusEl) totalSkusEl.textContent = `${s.total_skus || 0} SKUs`;
 
+        // Keep the panel badge in step with the live KPI rather than showing a
+        // hardcoded figure that would contradict the table below it.
+        const totalGainBadge = document.getElementById('total-gain-badge');
+        if (totalGainBadge) {
+            const pct = s.avg_profit_lift_pct;
+            totalGainBadge.textContent = (pct === null || pct === undefined)
+                ? `${this.formatCurrency(s.total_profit_lift)} Total Gain`
+                : `${pct >= 0 ? '+' : ''}${pct}% Total Gain`;
+        }
+
         const acts = s.action_counts || {};
         if (actionsSummaryEl) {
-            actionsSummaryEl.textContent = `${acts['Increase Price'] || 0} Increases | ${acts['Slight Reduction'] || acts['Clearance Markdown'] || 0} Markdowns`;
+            const markdowns = (acts['Clearance Markdown'] || 0) + (acts['Slight Reduction'] || 0);
+            const noStock = acts['No Stock'] || 0;
+            actionsSummaryEl.textContent =
+                `${acts['Increase Price'] || 0} Increases | ${markdowns} Markdowns` +
+                (noStock ? ` | ${noStock} Out of Stock` : '');
         }
 
         const risks = s.risk_counts || {};
-        const criticalCount = (risks['High Risk'] || 0) + (risks['Critical'] || 0) + (risks['Medium Risk'] || 0);
+        const criticalCount = (risks['High Risk'] || 0) + (risks['Critical'] || 0) + (risks['Medium Risk'] || 0) + (risks['Stockout'] || 0);
         if (riskSkusEl) riskSkusEl.textContent = `${criticalCount} SKUs`;
-        if (riskSubtextEl) riskSubtextEl.textContent = `${risks['Medium Risk'] || 0} Medium | ${risks['High Risk'] || 0} High Urgency`;
+        if (riskSubtextEl) {
+            riskSubtextEl.textContent = (risks['Stockout'] || 0)
+                ? `${risks['Medium Risk'] || 0} Medium | ${risks['High Risk'] || 0} High | ${risks['Stockout']} Out of Stock`
+                : `${risks['Medium Risk'] || 0} Medium | ${risks['High Risk'] || 0} High Urgency`;
+        }
 
         // Render Charts
         this.renderProfitComparisonChart();
@@ -500,7 +558,7 @@ const app = {
         const statusQuoProfits = this.state.optimizations.map(o => o.status_quo_profit);
         const optimizedProfits = this.state.optimizations.map(o => o.expected_lifecycle_profit);
 
-        Chart.defaults.color = '#94a3b8';
+        Chart.defaults.color = '#78848c';
         Chart.defaults.font.family = "'Inter', sans-serif";
 
         this.charts.profitComparison = new Chart(ctx, {
@@ -511,16 +569,16 @@ const app = {
                     {
                         label: 'Status Quo Baseline (₹)',
                         data: statusQuoProfits,
-                        backgroundColor: 'rgba(148, 163, 184, 0.3)',
-                        borderColor: '#64748b',
+                        backgroundColor: 'rgba(120, 132, 140, 0.28)',
+                        borderColor: '#78848c',
                         borderWidth: 1,
                         borderRadius: 6
                     },
                     {
                         label: 'AI Optimized Net Profit (₹)',
                         data: optimizedProfits,
-                        backgroundColor: 'rgba(99, 102, 241, 0.85)',
-                        borderColor: '#6366f1',
+                        backgroundColor: 'rgba(20, 214, 196, 0.75)',
+                        borderColor: '#14d6c4',
                         borderWidth: 1,
                         borderRadius: 6
                     }
@@ -565,15 +623,30 @@ const app = {
             this.charts.actionDistribution.destroy();
         }
 
-        const acts = this.state.summary.action_counts || {
-            'Increase Price': 7,
-            'Hold Price': 0,
-            'Slight Reduction': 1,
-            'Clearance Markdown': 0
+        // Derive the distribution from the live summary. The previous fallback was a
+        // hardcoded four-key object, so any action the API introduced (e.g. "No Stock")
+        // would render with no colour and no legend entry.
+        const acts = (this.state.summary && this.state.summary.action_counts) || {};
+        const entries = Object.entries(acts).filter(([, v]) => v > 0);
+
+        if (!entries.length) {
+            // Nothing to plot: destroy and show a note instead of an empty ring.
+            ctx.parentNode.innerHTML =
+                '<div class="mono-label" style="display:grid;place-items:center;height:100%;">No pricing actions returned.</div>';
+            return;
+        }
+
+        const ACTION_COLORS = {
+            'Increase Price': '#34d399',
+            'Hold Price': '#f5a524',
+            'Slight Reduction': '#14d6c4',
+            'Clearance Markdown': '#f4586a',
+            'No Stock': '#78848c'
         };
 
-        const labels = Object.keys(acts);
-        const dataVals = Object.values(acts);
+        const labels = entries.map(([k]) => k);
+        const dataVals = entries.map(([, v]) => v);
+        const colors = labels.map((l) => ACTION_COLORS[l] || '#55606a');
 
         this.charts.actionDistribution = new Chart(ctx, {
             type: 'doughnut',
@@ -581,14 +654,9 @@ const app = {
                 labels: labels,
                 datasets: [{
                     data: dataVals,
-                    backgroundColor: [
-                        '#10b981', // Success for Increase
-                        '#f59e0b', // Amber for Hold
-                        '#06b6d4', // Cyan for Slight Reduction
-                        '#ef4444'  // Red for Clearance Markdown
-                    ],
+                    backgroundColor: colors,
                     borderWidth: 2,
-                    borderColor: '#11192e'
+                    borderColor: '#101417'
                 }]
             },
             options: {
@@ -669,9 +737,10 @@ const app = {
             }
 
             let riskClass = 'risk-low';
-            if (item.inventory_risk_level.toLowerCase().includes('high') || item.inventory_risk_level.toLowerCase().includes('critical') || isUrgentEvent) {
+            const riskLc = (item.inventory_risk_level || '').toLowerCase();
+            if (riskLc.includes('high') || riskLc.includes('critical') || riskLc.includes('stockout') || isUrgentEvent) {
                 riskClass = 'risk-high';
-            } else if (item.inventory_risk_level.toLowerCase().includes('medium')) {
+            } else if (riskLc.includes('medium')) {
                 riskClass = 'risk-medium';
             }
 
@@ -794,7 +863,7 @@ const app = {
                 tr.style.setProperty('--rd', `${Math.min(si * 35, 350)}ms`);
                 let statusClass = 'risk-low';
                 if (s.status === 'Excess Overstock') statusClass = 'risk-medium';
-                if (s.status === 'Stockout Imminent') statusClass = 'risk-high';
+                if (s.status === 'Stockout Imminent' || s.status === 'Stockout') statusClass = 'risk-high';
                 tr.innerHTML = `
                     <td style="font-size:0.8rem; color:var(--text-secondary);">${sku.product_name}</td>
                     <td><strong>${s.store_name}</strong></td>
@@ -832,7 +901,7 @@ const app = {
         }
 
         if (totalTransfers === 0) {
-            tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:2rem; color:var(--text-muted);">No profitable transfers found — every store is within healthy supply bounds.</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:2rem; color:var(--text-muted);">No profitable transfers found for this snapshot — no SKU has both a surplus store and a deficit store, or the logistics cost exceeds the margin recovered. Check the Store-Level Supply Health table below for stockout stores that need replenishment instead.</td></tr>`;
         }
     },
 
@@ -939,20 +1008,46 @@ const app = {
         const displayEl = document.getElementById('sim-price-display');
         if (displayEl) displayEl.textContent = this.formatCurrency(p);
 
-        // Instant local interpolation for fast 60fps response
-        const horizon = Math.min(sku.days_to_successor, 60);
-        const priceRatio = p / sku.competitor_avg_price;
-        const baseDemand = sku.expected_daily_demand;
-        const elasticity = sku.elasticity || 2.0;
+        let estimatedDemand = sku.expected_daily_demand;
+        let netProfit = sku.expected_lifecycle_profit;
+        let demandLo = estimatedDemand;
+        let demandHi = estimatedDemand;
 
-        // Log-log demand elasticity formula: Q = Q0 * (P / P0)^(-elasticity)
-        const estimatedDemand = Math.max(0.1, baseDemand * Math.pow(Math.max(0.5, priceRatio), -elasticity));
+        // 60fps server curve interpolation for seamless consistency between tiles and chart
+        if (sku.feasible_prices && sku.feasible_prices.length > 1) {
+            const prices = sku.feasible_prices;
+            const demands = sku.demand_curve;
+            const profits = sku.profit_curve;
+            const demandsLo = sku.demand_curve_lower || demands;
+            const demandsHi = sku.demand_curve_upper || demands;
+
+            if (p <= prices[0]) {
+                estimatedDemand = demands[0];
+                netProfit = profits[0];
+                demandLo = demandsLo[0];
+                demandHi = demandsHi[0];
+            } else if (p >= prices[prices.length - 1]) {
+                const last = prices.length - 1;
+                estimatedDemand = demands[last];
+                netProfit = profits[last];
+                demandLo = demandsLo[last];
+                demandHi = demandsHi[last];
+            } else {
+                for (let i = 0; i < prices.length - 1; i++) {
+                    if (p >= prices[i] && p <= prices[i + 1]) {
+                        const span = prices[i + 1] - prices[i];
+                        const t = span > 0 ? (p - prices[i]) / span : 0;
+                        estimatedDemand = (1 - t) * demands[i] + t * demands[i + 1];
+                        netProfit = (1 - t) * profits[i] + t * profits[i + 1];
+                        demandLo = (1 - t) * demandsLo[i] + t * demandsLo[i + 1];
+                        demandHi = (1 - t) * demandsHi[i] + t * demandsHi[i + 1];
+                        break;
+                    }
+                }
+            }
+        }
+
         const unitMargin = p - sku.unit_cost;
-        const expectedSales = Math.min(sku.current_inventory, estimatedDemand * horizon);
-        const leftover = Math.max(0, sku.current_inventory - expectedSales);
-        const holdingCost = 0.5 * (sku.current_inventory + leftover) * sku.unit_cost * 0.0005 * horizon;
-        const deprecLoss = leftover * sku.unit_cost * 0.25;
-        const netProfit = (expectedSales * unitMargin) - holdingCost - deprecLoss;
         const clearanceDays = sku.current_inventory / (estimatedDemand + 1e-5);
 
         // Update UI tiles
@@ -961,10 +1056,73 @@ const app = {
         const resProfit = document.getElementById('sim-result-profit');
         const resClearance = document.getElementById('sim-result-clearance');
 
-        if (resDemand) resDemand.innerHTML = `${estimatedDemand.toFixed(1)} <small>units/day</small>`;
+        if (resDemand) {
+            resDemand.innerHTML = `${estimatedDemand.toFixed(1)} <small>units/day</small>`;
+            if (demandLo !== undefined && demandHi !== undefined && Math.abs(demandHi - demandLo) > 0.05) {
+                resDemand.title = `80% Conformal Interval: [${demandLo.toFixed(1)}, ${demandHi.toFixed(1)}] units/day`;
+            }
+        }
         if (resMargin) resMargin.textContent = this.formatCurrency(unitMargin);
         if (resProfit) resProfit.textContent = this.formatCurrency(netProfit);
         if (resClearance) resClearance.innerHTML = `${clearanceDays.toFixed(0)} <small>days</small>`;
+
+        // Debounced backend simulation to sync exact state
+        this.scheduleBackendSimulation(p, sku);
+    },
+
+    scheduleBackendSimulation(price, sku) {
+        if (this._simDebounceTimer) clearTimeout(this._simDebounceTimer);
+        this._simDebounceTimer = setTimeout(() => {
+            this.fetchBackendSimulation(price, sku);
+        }, 180);
+    },
+
+    async fetchBackendSimulation(price, sku) {
+        try {
+            const res = await fetch(`${API_BASE}/simulate`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    product_id: sku.product_id,
+                    price: price,
+                    model_source: this.state.modelSource || 'synthetic',
+                    // Send the SKU's real context. Without these the endpoint falls back
+                    // to its own defaults, so the tiles would contradict the chart
+                    // (which is computed by the optimizer from the true values).
+                    inventory: sku.current_inventory,
+                    days_to_successor: sku.days_to_successor,
+                    competitor_avg_price: sku.competitor_avg_price,
+                    competitor_min_price: sku.competitor_min_price
+                })
+            });
+            // A non-OK response must not silently leave stale numbers on screen.
+            if (!res.ok) throw new Error(`simulate HTTP ${res.status}`);
+            const data = await res.json();
+            if (data.status === 'success') {
+                const resDemand = document.getElementById('sim-result-demand');
+                const resMargin = document.getElementById('sim-result-margin');
+                const resProfit = document.getElementById('sim-result-profit');
+                const resClearance = document.getElementById('sim-result-clearance');
+
+                if (resDemand && data.daily_demand !== undefined) {
+                    resDemand.innerHTML = `${data.daily_demand.toFixed(1)} <small>units/day</small>`;
+                    if (data.daily_demand_lower !== undefined && data.daily_demand_upper !== undefined) {
+                        resDemand.title = `80% Conformal Interval: [${data.daily_demand_lower.toFixed(1)}, ${data.daily_demand_upper.toFixed(1)}] units/day`;
+                    }
+                }
+                if (resMargin && data.margin_per_unit !== undefined) {
+                    resMargin.textContent = this.formatCurrency(data.margin_per_unit);
+                }
+                if (resProfit && data.expected_net_profit !== undefined) {
+                    resProfit.textContent = this.formatCurrency(data.expected_net_profit);
+                }
+                if (resClearance && data.clearance_days !== undefined) {
+                    resClearance.innerHTML = `${data.clearance_days.toFixed(0)} <small>days</small>`;
+                }
+            }
+        } catch (e) {
+            // Silently maintain smooth interpolated values
+        }
     },
 
     renderSimulatorCurves() {
@@ -980,34 +1138,70 @@ const app = {
         const profits = sku.profit_curve;
         const demands = sku.demand_curve;
 
+        const datasets = [
+            {
+                label: 'Projected Net Profit (₹)',
+                data: profits,
+                borderColor: '#14d6c4',
+                backgroundColor: 'rgba(20, 214, 196, 0.1)',
+                fill: true,
+                tension: 0.35,
+                yAxisID: 'yProfit',
+                pointRadius: 2,
+                pointHoverRadius: 6,
+                order: 1
+            },
+            {
+                label: 'Daily Demand (Units)',
+                data: demands,
+                borderColor: '#78848c',
+                backgroundColor: 'transparent',
+                borderDash: [4, 4],
+                tension: 0.3,
+                yAxisID: 'yDemand',
+                pointRadius: 2,
+                pointHoverRadius: 6,
+                order: 2
+            }
+        ];
+
+        // Conformal Prediction Interval band (P10 - P90)
+        if (sku.demand_curve_upper && sku.demand_curve_lower) {
+            datasets.push({
+                label: 'Demand Uncertainty (P90)',
+                data: sku.demand_curve_upper,
+                borderColor: 'rgba(120, 132, 140, 0.3)',
+                borderWidth: 1,
+                borderDash: [2, 2],
+                backgroundColor: 'rgba(120, 132, 140, 0.08)',
+                fill: '+1',
+                tension: 0.3,
+                yAxisID: 'yDemand',
+                pointRadius: 0,
+                pointHoverRadius: 0,
+                order: 3
+            });
+            datasets.push({
+                label: 'Demand Uncertainty (P10)',
+                data: sku.demand_curve_lower,
+                borderColor: 'rgba(120, 132, 140, 0.3)',
+                borderWidth: 1,
+                borderDash: [2, 2],
+                backgroundColor: 'transparent',
+                fill: false,
+                tension: 0.3,
+                yAxisID: 'yDemand',
+                pointRadius: 0,
+                pointHoverRadius: 0,
+                order: 4
+            });
+        }
+
         this.charts.simulatorCurve = new Chart(ctx, {
             type: 'line',
             data: {
                 labels: prices.map(p => `₹${p.toLocaleString('en-IN')}`),
-                datasets: [
-                    {
-                        label: 'Projected Net Profit (₹)',
-                        data: profits,
-                        borderColor: '#6366f1',
-                        backgroundColor: 'rgba(99, 102, 241, 0.1)',
-                        fill: true,
-                        tension: 0.35,
-                        yAxisID: 'yProfit',
-                        pointRadius: 2,
-                        pointHoverRadius: 6
-                    },
-                    {
-                        label: 'Daily Demand (Units)',
-                        data: demands,
-                        borderColor: '#06b6d4',
-                        backgroundColor: 'transparent',
-                        borderDash: [4, 4],
-                        tension: 0.3,
-                        yAxisID: 'yDemand',
-                        pointRadius: 2,
-                        pointHoverRadius: 6
-                    }
-                ]
+                datasets: datasets
             },
             options: {
                 responsive: true,
@@ -1024,6 +1218,9 @@ const app = {
                             label: (context) => {
                                 if (context.dataset.yAxisID === 'yProfit') {
                                     return `Net Profit: ${this.formatCurrency(context.raw)}`;
+                                }
+                                if (context.dataset.label.includes('Uncertainty')) {
+                                    return `${context.dataset.label}: ${context.raw.toFixed(1)} u/d`;
                                 }
                                 return `Daily Demand: ${context.raw.toFixed(1)} units/day`;
                             }
@@ -1161,14 +1358,31 @@ const app = {
     },
 
     renderErrorState() {
+        // Strip the API prefix so the message names the origin actually in use,
+        // instead of hardcoding a port that may not be the one serving this page.
+        const origin = (typeof window !== 'undefined' && window.location && window.location.origin)
+            ? window.location.origin
+            : 'the FastAPI server';
+
+        // Static fallback copy in the markup would otherwise sit next to an error
+        // claiming numbers that nothing has verified.
+        ['kpi-profit-lift', 'kpi-profit-lift-pct', 'kpi-inventory-units',
+         'kpi-inventory-value', 'kpi-total-skus', 'kpi-actions-summary',
+         'kpi-risk-skus', 'kpi-risk-subtext'].forEach((id) => {
+            const el = document.getElementById(id);
+            if (el) el.textContent = '—';
+        });
+        const badge = document.getElementById('total-gain-badge');
+        if (badge) badge.textContent = 'Unavailable';
+
         const tbody = document.getElementById('sku-table-body');
         if (tbody) {
             tbody.innerHTML = `
                 <tr>
                     <td colspan="8" style="text-align: center; padding: 3rem;">
-                        <i class="fa-solid fa-triangle-exclamation" style="font-size: 2rem; color: var(--warning); margin-bottom: 1rem; display: block;"></i>
+                        <i class="fa-solid fa-triangle-exclamation" style="font-size: 2rem; color: var(--status-warning); margin-bottom: 1rem; display: block;"></i>
                         <h4 style="margin-bottom: 0.5rem;">Could not connect to AI Engine API</h4>
-                        <p style="color: var(--text-muted); margin-bottom: 1.5rem;">Please ensure the FastAPI backend is running on <code>http://localhost:8000</code></p>
+                        <p style="color: var(--text-muted); margin-bottom: 1.5rem;">No response from <code>${origin}/api</code>. Start the backend with <code>python -m uvicorn api.main:app --host 127.0.0.1 --port 8000</code> and open this page from that server.</p>
                         <button class="btn btn-primary btn-sm" onclick="app.loadData()">Retry Connection</button>
                     </td>
                 </tr>
@@ -1178,3 +1392,9 @@ const app = {
 };
 
 document.addEventListener('DOMContentLoaded', () => app.init());
+
+// Expose the engine on the global object. `const` at the top level of a classic
+// script creates a global *lexical* binding (so inline onclick="app.x()" resolves)
+// but NOT a property of `window` — so any companion script probing `window.app`
+// would silently find undefined.
+window.app = app;

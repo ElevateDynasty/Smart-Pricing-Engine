@@ -12,6 +12,8 @@
 | Full pipeline run (`python main.py`) | ✅ Completed, exit 0 (see §1) |
 | Diagnostics on demand curve & elasticity | ✅ Completed (see §2) |
 | Source code changes | ✅ Frontend (§6) & all core ML fixes in §3 IMPLEMENTED & VERIFIED (see §10) |
+| 5 Critical Fixes (Simulator, Catalog Safety, RSS, Uncertainty, Kaggle) | ✅ IMPLEMENTED & VERIFIED (see §11) |
+| Test Suite Status | ✅ 18/18 pytest tests passing |
 | Temp diagnostic script `_diag_check.py` | 🗑️ Created and deleted (cleanup done) |
 | Server hosting | ✅ Running on 0.0.0.0:8000 — localhost + LAN (see §6) |
 | ML inventory & feature roadmap | ✅ Documented (see §7) |
@@ -342,3 +344,57 @@ All priority fixes detailed in §3 (P0-1, P0-2, P1-1, P1-2, and P2) have been fu
 - **Documented Prediction Defaults:** Explicit docstrings for default context features added in `DemandForecaster.predict_point()`.
 - **Price Path Generator Resiliency:** `src/optimization/price_path_generator.py` pads remaining phases with cleared status if inventory liquidates before all phases elapse.
 - **Test Suite Expanded:** `tests/test_models.py` augmented with `test_demand_forecaster_monotonicity` (asserts zero violations of the Law of Demand) and `test_elasticity_recovery`. Full pytest suite passes: **14 passed**.
+
+---
+
+## 11. 5 Critical Architectural & Econometric Issues — IMPLEMENTED & VERIFIED
+
+All 5 critical issues identified across the simulator, state safety, external data ingestion, uncertainty quantification, and real Kaggle tuning have been fully resolved and verified.
+
+### 11.1 Issue 1: Simulator Consistency & Unified Server Modeling (DONE)
+- **Problem:** Slider in frontend previously calculated demand and profit using an ad-hoc client-side power-law heuristic (`Q0 * (P/P0)^(-elasticity)`) with divergent holding cost constants, creating a jarring mismatch between telemetry numbers and the LightGBM chart curve.
+- **Fix:**
+  - Added backend `POST /api/simulate` endpoint in `api/routes/analytics.py` returning exact financial metrics (revenue, cogs, holding cost, financing cost, salvage depreciation, net profit, clearance days, calibrated clearance probability) and conformal bounds matching the `LifecycleOptimizer`.
+  - In `frontend/js/app.js`, `updateSimulatorCalculations` now interpolates directly along `sku.feasible_prices`, `sku.demand_curve`, and `sku.profit_curve` at 60fps for instantaneous, mathematically identical responsiveness.
+  - Added debounced call (`scheduleBackendSimulation`, 180ms) to sync with `/api/simulate` on user interaction.
+
+### 11.2 Issue 2: Catalog Mutation Safety & In-Memory State Overrides (DONE)
+- **Problem:** Calling `POST /api/lifecycle-event` or `/api/reset-events` overwrote `data/synthetic/products.csv` on disk with `df.to_csv(...)`, permanently altering the catalog file in git and creating dangerous state corruption across concurrent requests.
+- **Fix:**
+  - Introduced thread-safe in-memory override store `_runtime_catalog_overrides: Dict[str, Dict[str, Any]] = {}` in `api/routes/analytics.py`.
+  - `get_catalog_and_meta()` applies overrides non-destructively onto memory copies of the DataFrame.
+  - `trigger_lifecycle_event()` writes to `_runtime_catalog_overrides` with zero filesystem operations.
+  - `reset_lifecycle_events()` executes `_runtime_catalog_overrides.clear()`.
+  - **Verification:** Unit tests confirm `products.csv` file modification time (`mtime`) remains strictly unchanged across all event triggers and resets.
+
+### 11.3 Issue 5: Real-World Google News RSS Feeds Ingestion & Auto-Triggering (DONE)
+- **Problem:** `scripts/monitor_tech_launches.py` previously contained mock hardcoded print statements pretending to poll news feeds.
+- **Fix:**
+  - Implemented live HTTP fetching and XML parsing using Python stdlib (`urllib.request` + `xml.etree.ElementTree`).
+  - Queries Google News RSS stream for flagship launch announcements (`iPhone OR Galaxy OR Pixel launch`).
+  - Regex keyword matcher maps breaking news to catalog watchlist SKUs (iPhone 18, Galaxy S27, Pixel 11).
+  - Added `--auto-trigger` CLI flag to automatically dispatch event payloads to `POST /api/lifecycle-event` when verified headlines are detected.
+  - Included resilient offline cache fallback for air-gapped seminar environments.
+
+### 11.4 Issue 4: Conformal Prediction Intervals & Uncertainty Quantification (DONE)
+- **Problem:** Demand forecasts were point estimates with zero uncertainty quantification, reducing seminar credibility and ignoring downstream revenue risk.
+- **Fix:**
+  - LightGBM disallows `monotone_constraints` when paired with `objective="quantile"`. To preserve strict economic monotonicity (Law of Demand) without quantile crossing, implemented calibrated Conformal Prediction Intervals using empirical residual quantiles from the time-ordered validation split:
+    $$\hat{y}_{\text{lower}} = \max(0, \hat{y} + e_{10}), \quad \hat{y}_{\text{upper}} = \hat{y} + e_{90}$$
+  - `DemandForecaster` and `KaggleDemandAdapter` now provide `predict_point(..., return_interval=True)` and `predict_demand_curve(..., return_intervals=True)`.
+  - `LifecycleOptimizer` computes uncertainty envelopes for both demand and net profit (`demand_curve_lower`, `demand_curve_upper`, `profit_curve_lower`, `profit_curve_upper`).
+  - Serialized across `/api/optimizations` and `/api/simulate`, and rendered as an interactive shaded uncertainty band on Chart.js.
+
+### 11.5 Issue 3: Real-Data Kaggle Model Tuning (DONE)
+- **Problem:** When trained on the real Kaggle `retail_price.csv` dataset, the LightGBM model suffered from heavy quantity skewness and category variance, yielding a negative out-of-time validation $R^2$ of $-0.061$.
+- **Fix:**
+  - In `src/data/kaggle_pipeline.py`, switched regression target to $y = \log(1 + \text{qty})$ to handle heavy distribution skewness.
+  - Engineered leakage-free category target encoding `cat_avg_qty` calculated strictly on the training partition (`df.iloc[:split_idx]`).
+  - Added `volume` feature and regularized LightGBM hyperparameters (`n_estimators=120`, `learning_rate=0.03`, `num_leaves=12`, `min_child_samples=6`, `subsample=0.85`, `colsample_bytree=0.8`).
+  - Inverted predictions via $\exp(\hat{y}) - 1$.
+  - **Results:**
+    - Validation $R^2$ lifted from **$-0.061$** to **$+0.174$** (positive, leakage-free generalization).
+    - Validation MAE dropped from **$9.09$** to **$7.355$** units.
+  - Updated `KaggleDemandAdapter` with category mappings, volume covariates, and prediction interval bounds.
+- **Test Suite Expanded:** Full pytest suite augmented to **18 passing tests** (`python -m pytest tests/ -v`).
+

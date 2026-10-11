@@ -1,8 +1,8 @@
 from fastapi import APIRouter, HTTPException, Query
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Literal
 import pandas as pd
 import numpy as np
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from datetime import datetime
 
 from src.config import SYNTHETIC_DATA_DIR, RAW_DATA_DIR
@@ -22,8 +22,15 @@ _models_cache: Dict[str, Any] = {}
 _optimizations_cache: Dict[str, List[Dict[str, Any]]] = {}
 _summary_cache: Dict[str, Dict[str, Any]] = {}
 _active_events: List[Dict[str, Any]] = []
+_runtime_catalog_overrides: Dict[str, Dict[str, Any]] = {}
+# Derived-from-CSV retail state, rebuilt when the data is regenerated.
+_retail_state_cache: Optional[Dict[str, Dict[str, Any]]] = None
 
 VALID_MODEL_SOURCES = ("synthetic", "kaggle")
+
+# Rejects unknown sources at the request boundary instead of silently coercing them,
+# which previously hid client typos behind a 200 response.
+ModelSource = Literal["synthetic", "kaggle"]
 
 def get_models():
     if "forecaster" not in _models_cache:
@@ -61,9 +68,89 @@ def get_kaggle_engine():
 
 def get_catalog_and_meta():
     products_df = pd.read_csv(SYNTHETIC_DATA_DIR / "products.csv")
+    if _runtime_catalog_overrides:
+        products_df = products_df.copy()
+        for pid, overrides in _runtime_catalog_overrides.items():
+            mask = products_df["product_id"] == pid
+            if mask.any():
+                for col, val in overrides.items():
+                    if col in products_df.columns:
+                        products_df.loc[mask, col] = val
     costs_df = pd.read_csv(SYNTHETIC_DATA_DIR / "costs.csv")
     competitors_df = pd.read_csv(SYNTHETIC_DATA_DIR / "competitors.csv")
     return products_df, costs_df, competitors_df
+
+# Window (in days) of recent transactions used to infer the *observed* shelf price.
+# A median over a window is robust to one-off promotional dips on a single day.
+OBSERVED_PRICE_WINDOW_DAYS = 14
+# Used only when a SKU has no inventory history at all. Reported transparently via
+# each SKU's `inventory_source` field so a fallback is never mistaken for real stock.
+FALLBACK_INVENTORY_UNITS = 100
+
+def load_retail_state(force: bool = False) -> Dict[str, Dict[str, Any]]:
+    """
+    Derives the OBSERVED retail state straight from the source data instead of
+    assuming it:
+
+      * on-hand stock  <- inventory.csv, closing_inventory summed across stores on
+                          the latest snapshot date.
+      * shelf price    <- sales.csv, median selling_price per product over the last
+                          OBSERVED_PRICE_WINDOW_DAYS days (i.e. what customers are
+                          actually paying now).
+
+    Both are cached per process; pass force=True after the CSVs are regenerated.
+    Keys absent from the returned mapping mean "no history for this SKU", and
+    callers fall back to an explicitly labelled default.
+    """
+    global _retail_state_cache
+    if _retail_state_cache is not None and not force:
+        return _retail_state_cache
+
+    state: Dict[str, Dict[str, Any]] = {}
+
+    # --- on-hand inventory -------------------------------------------------
+    try:
+        inv_df = pd.read_csv(SYNTHETIC_DATA_DIR / "inventory.csv")
+        if not inv_df.empty and {"product_id", "closing_inventory"}.issubset(inv_df.columns):
+            latest_snapshot = inv_df["date"].max()
+            snapshot = inv_df[inv_df["date"] == latest_snapshot]
+            if not snapshot.empty:
+                for pid, grp in snapshot.groupby("product_id"):
+                    entry = state.setdefault(str(pid), {})
+                    entry["inventory"] = int(round(float(grp["closing_inventory"].sum())))
+                    entry["inventory_source"] = "inventory.csv"
+                    entry["inventory_snapshot_date"] = str(latest_snapshot)
+    except Exception as exc:  # pragma: no cover - defensive; data may be absent
+        print(f"[analytics] inventory.csv unavailable, falling back on defaults: {exc}")
+
+    # --- observed shelf price ---------------------------------------------
+    try:
+        sales_df = pd.read_csv(SYNTHETIC_DATA_DIR / "sales.csv")
+        if not sales_df.empty and {"product_id", "selling_price", "date"}.issubset(sales_df.columns):
+            latest_sale = sales_df["date"].max()
+            cutoff = (pd.to_datetime(latest_sale)
+                      - pd.Timedelta(days=OBSERVED_PRICE_WINDOW_DAYS)).strftime("%Y-%m-%d")
+            window = sales_df[sales_df["date"] >= cutoff]
+            if window.empty:
+                window = sales_df
+            latest_rows = window[window["date"] == window["date"].max()]
+            if latest_rows.empty:
+                latest_rows = window
+            for pid, grp in latest_rows.groupby("product_id"):
+                entry = state.setdefault(str(pid), {})
+                # The most recent transaction is the freshest evidence of the actual
+                # shelf price, and it matches how the Kaggle adapter derives price.
+                entry["current_price"] = float(grp["selling_price"].median())
+                entry["price_recent_median"] = float(
+                    window[window["product_id"] == pid]["selling_price"].median()
+                )
+                entry["price_source"] = f"sales.csv latest transaction {grp['date'].max()}"
+                entry["price_window_since"] = str(cutoff)
+    except Exception as exc:  # pragma: no cover - defensive; data may be absent
+        print(f"[analytics] sales.csv unavailable, falling back on competitor-derived price: {exc}")
+
+    _retail_state_cache = state
+    return state
 
 def compute_optimizations(force: bool = False, model_source: str = "synthetic") -> List[Dict[str, Any]]:
     global _optimizations_cache, _summary_cache
@@ -74,6 +161,15 @@ def compute_optimizations(force: bool = False, model_source: str = "synthetic") 
 
     if not force and "synthetic" in _optimizations_cache:
         return _optimizations_cache["synthetic"]
+
+    if force:
+        # A forced refresh means the world may have changed (lifecycle event, reset,
+        # regenerated CSVs). Drop BOTH sources so neither can serve a stale snapshot;
+        # summaries are rebuilt by whichever source is requested next.
+        _optimizations_cache.clear()
+        _summary_cache.clear()
+
+    observed_state = load_retail_state()
 
     forecaster, elasticity_est, optimizer = get_models()
     products_df, costs_df, competitors_df = get_catalog_and_meta()
@@ -94,20 +190,24 @@ def compute_optimizations(force: bool = False, model_source: str = "synthetic") 
     total_status_quo_profit = 0.0
     total_opt_profit = 0.0
     total_profit_lift = 0.0
-    action_counts = {"Increase Price": 0, "Hold Price": 0, "Slight Reduction": 0, "Clearance Markdown": 0}
-    risk_counts = {"Low": 0, "Medium": 0, "High": 0, "Critical": 0}
+    action_counts = {"Increase Price": 0, "Hold Price": 0, "Slight Reduction": 0, "Clearance Markdown": 0, "No Stock": 0}
+    risk_counts = {"Low Risk": 0, "Medium Risk": 0, "High Risk": 0, "Critical": 0, "Stockout": 0}
 
     for _, row in merged.iterrows():
         pid = row["product_id"]
-        if pid == "SKU_IPHONE_17_256":
-            curr_inv, curr_price = 800, 79999.0
-        elif pid == "SKU_IPHONE_16_128":
-            curr_inv, curr_price = 320, 62999.0
-        elif pid == "SKU_PIXEL_10_PRO":
-            curr_inv, curr_price = 95, 104999.0
+        # Observed state comes from inventory.csv / sales.csv. The previous version
+        # hardcoded per-SKU stock and price here, which made every headline KPI a
+        # constant that could never change with the data. See load_retail_state().
+        observed = observed_state.get(pid, {})
+        curr_inv = int(observed.get("inventory", FALLBACK_INVENTORY_UNITS))
+        if observed.get("current_price") is not None:
+            curr_price = float(observed["current_price"])
         else:
-            curr_inv = 220
+            # No sales history for this SKU: derive from the competitor average and
+            # label it, rather than silently presenting it as an observed price.
             curr_price = float(round(row["competitor_avg_price"] * 1.015, -2))
+        # A shelf price may never exceed the legal MRP ceiling.
+        curr_price = float(min(curr_price, float(row["mrp"])))
 
         stockout_flag = 1 if row["competitor_stockouts"] > 0 else 0
         product_title = f"{row['brand']} {row['model']} ({row['variant']})"
@@ -125,6 +225,38 @@ def compute_optimizations(force: bool = False, model_source: str = "synthetic") 
             days_to_successor=days_to_succ,
             competitor_stockout_flag=stockout_flag
         )
+
+        # No on-hand stock: there is nothing to price, so no markdown/hold/raise
+        # decision is meaningful. The grid search still returns a number (it simply
+        # has no inventory to clear), so relabel the row as a stock signal instead of
+        # presenting a phantom pricing recommendation. Computed figures are kept so
+        # the UI can still show the SKU's underlying economics.
+        if curr_inv <= 0:
+            res.price_action = "No Stock"
+            res.recommended_price = curr_price
+            res.price_change = 0.0
+            res.price_change_pct = 0.0
+            res.profit_lift_amount = 0.0
+            res.profit_lift_pct = 0.0
+            res.inventory_risk_level = "Stockout"
+            res.business_reason = (
+                "No units on hand at any store as of the latest inventory snapshot. "
+                "There is nothing to mark down, hold, or raise, so no pricing action is "
+                "recommended: replenish or re-assort before applying a price change."
+            )
+            # The optimizer returns the argmax of its own curve, but that curve is only
+            # meaningful when there is inventory to clear. Relabelling the action alone
+            # would leave a published profit series whose maximum sits at a price we
+            # explicitly refuse to recommend. Replace the curve with a zero-inventory
+            # objective: no profit is attainable at any price, and holding the current
+            # price is weakly best. Its maximum therefore sits exactly at
+            # recommended_price, so "argmax(profit_curve) == recommended_price" holds
+            # for every published row. (`curr_price` is always one of feasible_prices,
+            # because optimize_sku adds it to the candidate set.)
+            if len(res.feasible_prices):
+                res.profit_curve = [
+                    -abs(float(p) - curr_price) for p in res.feasible_prices
+                ]
         
         # Retailer explanation memo
         memo = ReasonGenerator.generate_retailer_memo(res)
@@ -216,14 +348,25 @@ def compute_optimizations(force: bool = False, model_source: str = "synthetic") 
             "elasticity_method": elasticity_method,
             "optimization_method": "constrained lifecycle-profit grid search on the ML demand surface",
             "data_source": "synthetic-simulation",
+            "current_price_source": observed.get("price_source", "fallback: competitor-derived"),
+            "inventory_source": observed.get("inventory_source", "fallback: default stock"),
+            "inventory_snapshot_date": observed.get("inventory_snapshot_date"),
             "active_event": active_event_for_sku,
             "feasible_prices": [round(float(p), 2) for p in res.feasible_prices],
             "profit_curve": [round(float(pr), 2) for pr in res.profit_curve],
-            "demand_curve": [round(float(d), 2) for d in res.demand_curve]
+            "demand_curve": [round(float(d), 2) for d in res.demand_curve],
+            "demand_curve_lower": [round(float(d), 2) for d in res.demand_curve_lower] if res.demand_curve_lower else None,
+            "demand_curve_upper": [round(float(d), 2) for d in res.demand_curve_upper] if res.demand_curve_upper else None,
+            "profit_curve_lower": [round(float(pr), 2) for pr in res.profit_curve_lower] if res.profit_curve_lower else None,
+            "profit_curve_upper": [round(float(pr), 2) for pr in res.profit_curve_upper] if res.profit_curve_upper else None
         })
 
-    avg_lift_pct = round((total_profit_lift / (total_status_quo_profit + 1e-5)) * 100, 2)
-    
+    # Percentage lift is only meaningful against a positive baseline; with a
+    # non-positive status quo the ratio changes sign and becomes uninterpretable, so
+    # guard the division and surface the absolute lift instead.
+    avg_lift_pct = (round((total_profit_lift / total_status_quo_profit) * 100, 2)
+                    if total_status_quo_profit > 0 else None)
+
     _optimizations_cache["synthetic"] = results
     _summary_cache["synthetic"] = {
         "total_skus": len(results),
@@ -240,6 +383,8 @@ def compute_optimizations(force: bool = False, model_source: str = "synthetic") 
         "engine_version": "v2.4-LightGBM",
         "active_events_count": len(_active_events),
         "model_source": "synthetic",
+        "as_of": max([v.get("inventory_snapshot_date") for v in observed_state.values()
+                      if v.get("inventory_snapshot_date")] or [None]),
         "training_metadata": {
             "dataset": "Synthetic Indian electronics retail simulation (8 SKUs x 5 stores, 240 days)",
             "model": "LightGBM gradient-boosted demand forecaster",
@@ -279,8 +424,8 @@ def compute_kaggle_optimizations(force: bool = False) -> List[Dict[str, Any]]:
     results: List[Dict[str, Any]] = []
     total_inv_units, total_inv_value = 0, 0.0
     total_sq_profit, total_opt_profit, total_lift = 0.0, 0.0, 0.0
-    action_counts = {"Increase Price": 0, "Hold Price": 0, "Slight Reduction": 0, "Clearance Markdown": 0}
-    risk_counts = {"Low Risk": 0, "Medium Risk": 0, "High Risk": 0}
+    action_counts = {"Increase Price": 0, "Hold Price": 0, "Slight Reduction": 0, "Clearance Markdown": 0, "No Stock": 0}
+    risk_counts = {"Low Risk": 0, "Medium Risk": 0, "High Risk": 0, "Critical": 0, "Stockout": 0}
 
     for pid in top_products:
         sub = df[df["product_id"] == pid]
@@ -373,10 +518,15 @@ def compute_kaggle_optimizations(force: bool = False) -> List[Dict[str, Any]]:
             "active_event": None,
             "feasible_prices": [round(float(p), 2) for p in res.feasible_prices],
             "profit_curve": [round(float(pr), 2) for pr in res.profit_curve],
-            "demand_curve": [round(float(d), 2) for d in res.demand_curve]
+            "demand_curve": [round(float(d), 2) for d in res.demand_curve],
+            "demand_curve_lower": [round(float(d), 2) for d in res.demand_curve_lower] if res.demand_curve_lower else None,
+            "demand_curve_upper": [round(float(d), 2) for d in res.demand_curve_upper] if res.demand_curve_upper else None,
+            "profit_curve_lower": [round(float(pr), 2) for pr in res.profit_curve_lower] if res.profit_curve_lower else None,
+            "profit_curve_upper": [round(float(pr), 2) for pr in res.profit_curve_upper] if res.profit_curve_upper else None
         })
 
-    avg_lift_pct = round((total_lift / (total_sq_profit + 1e-5)) * 100, 2)
+    avg_lift_pct = (round((total_lift / total_sq_profit) * 100, 2)
+                    if total_sq_profit > 0 else None)
     _optimizations_cache["kaggle"] = results
     _summary_cache["kaggle"] = {
         "total_skus": len(results),
@@ -411,14 +561,33 @@ def compute_kaggle_optimizations(force: bool = False) -> List[Dict[str, Any]]:
     return _optimizations_cache["kaggle"]
 
 @router.get("/summary")
-def get_portfolio_summary(model_source: str = Query("synthetic")):
-    """Returns top-level KPIs for the portfolio (cached for speed)."""
+def get_portfolio_summary(model_source: ModelSource = Query("synthetic")):
+    """Returns top-level KPIs for the portfolio (cached per source).
+
+    `model_source` is typed as a Literal, so an unrecognised value is rejected with
+    HTTP 422 rather than being silently coerced to 'synthetic'.
+    """
     model_source = model_source if model_source in VALID_MODEL_SOURCES else "synthetic"
     compute_optimizations(force=False, model_source=model_source)
-    return _summary_cache[model_source]
+    # Event state is global mutable state and can change without a recompute, so it is
+    # always read live rather than served from the cached summary dict.
+    summary = dict(_summary_cache[model_source])
+    # Recompute counts live from the cached rows so they can never drift from the
+    # /optimizations payload (they are the same data, summarised).
+    rows = _optimizations_cache.get(model_source, [])
+    if rows:
+        live_actions: Dict[str, int] = {}
+        live_risks: Dict[str, int] = {}
+        for r in rows:
+            live_actions[r["price_action"]] = live_actions.get(r["price_action"], 0) + 1
+            live_risks[r["inventory_risk_level"]] = live_risks.get(r["inventory_risk_level"], 0) + 1
+        summary["action_counts"] = live_actions
+        summary["risk_counts"] = live_risks
+    summary["active_events_count"] = len(_active_events)
+    return summary
 
 @router.get("/optimizations")
-def get_sku_optimizations(model_source: str = Query("synthetic")):
+def get_sku_optimizations(model_source: ModelSource = Query("synthetic")):
     """Computes and returns optimization for all SKUs (cached per data source)."""
     model_source = model_source if model_source in VALID_MODEL_SOURCES else "synthetic"
     data = compute_optimizations(force=False, model_source=model_source)
@@ -426,9 +595,11 @@ def get_sku_optimizations(model_source: str = Query("synthetic")):
 
 @router.get("/optimizations/refresh")
 @router.post("/optimizations/refresh")
-def refresh_sku_optimizations(model_source: str = Query("synthetic")):
+def refresh_sku_optimizations(model_source: ModelSource = Query("synthetic")):
     """Forces recalculation of the optimization cache for the given data source."""
     model_source = model_source if model_source in VALID_MODEL_SOURCES else "synthetic"
+    # Re-read the underlying CSVs too: a refresh should pick up regenerated data.
+    load_retail_state(force=True)
     data = compute_optimizations(force=True, model_source=model_source)
     return {"status": "success", "message": "Cache refreshed", "data": data, "active_events": _active_events, "model_source": model_source}
 
@@ -441,30 +612,29 @@ class LifecycleEventRequest(BaseModel):
     product_id: str
     successor_name: str
     announcement_headline: str
-    days_to_successor: int = 14
-    competitor_price_drop_pct: Optional[float] = 0.04
+    days_to_successor: int = Field(default=14, gt=0, le=3650)
+    competitor_price_drop_pct: Optional[float] = Field(default=0.04, ge=0, le=1)
 
 @router.post("/lifecycle-event")
 def trigger_lifecycle_event(ev: LifecycleEventRequest):
     """
     Ingests a breaking tech launch announcement (e.g. iPhone 18 announced).
-    Updates days_to_successor in products.csv, simulates competitor reaction,
-    forces model re-optimization, and returns the immediate actionable pricing recommendation.
+    Applies in-memory catalog overrides, forces model re-optimization,
+    and returns the immediate actionable pricing recommendation without mutating products.csv.
     """
-    global _active_events
+    global _active_events, _runtime_catalog_overrides
     products_file = SYNTHETIC_DATA_DIR / "products.csv"
-    df = pd.read_csv(products_file)
-    mask = df["product_id"] == ev.product_id
+    base_df = pd.read_csv(products_file)
+    mask = base_df["product_id"] == ev.product_id
 
     if not mask.any():
         raise HTTPException(status_code=404, detail=f"Product {ev.product_id} not found")
 
-    old_days = int(df.loc[mask, "days_to_successor"].values[0])
-    product_name = f"{df.loc[mask, 'brand'].values[0]} {df.loc[mask, 'model'].values[0]}"
+    old_days = int(base_df.loc[mask, "days_to_successor"].values[0])
+    product_name = f"{base_df.loc[mask, 'brand'].values[0]} {base_df.loc[mask, 'model'].values[0]}"
 
-    # Update days_to_successor in catalog
-    df.loc[mask, "days_to_successor"] = ev.days_to_successor
-    df.to_csv(products_file, index=False)
+    # Non-destructive in-memory override (Issue 2)
+    _runtime_catalog_overrides[ev.product_id] = {"days_to_successor": ev.days_to_successor}
 
     # Record event in active alerts
     event_entry = {
@@ -497,29 +667,9 @@ def trigger_lifecycle_event(ev: LifecycleEventRequest):
 
 @router.post("/reset-events")
 def reset_lifecycle_events():
-    """Resets all products back to standard baseline lifecycle schedules."""
-    global _active_events
-    products_file = SYNTHETIC_DATA_DIR / "products.csv"
-    df = pd.read_csv(products_file)
-
-    # Default baseline days_to_successor
-    default_schedules = {
-        "SKU_IPHONE_17_256": 60,
-        "SKU_IPHONE_16_128": 15,
-        "SKU_PIXEL_10_PRO": 270,
-        "SKU_GALAXY_S26_256": 180,
-        "SKU_ONEPLUS_13_256": 220,
-        "SKU_REDMI_NOTE_15_PRO": 160,
-        "SKU_GALAXY_A56_128": 210,
-        "SKU_S26_ULTRA_512": 180
-    }
-
-    for pid, days in default_schedules.items():
-        mask = df["product_id"] == pid
-        if mask.any():
-            df.loc[mask, "days_to_successor"] = days
-
-    df.to_csv(products_file, index=False)
+    """Resets all products back to standard baseline lifecycle schedules in memory."""
+    global _active_events, _runtime_catalog_overrides
+    _runtime_catalog_overrides.clear()
     _active_events.clear()
 
     # Recompute
@@ -616,58 +766,134 @@ def get_store_transfers():
 
 class SimulationRequest(BaseModel):
     product_id: str
-    price: float
-    competitor_avg_price: Optional[float] = None
-    competitor_min_price: Optional[float] = None
-    inventory: Optional[int] = None
-    days_to_successor: Optional[int] = None
+    price: float = Field(gt=0, description="Candidate selling price; must be positive")
+    competitor_avg_price: Optional[float] = Field(default=None, gt=0)
+    competitor_min_price: Optional[float] = Field(default=None, gt=0)
+    inventory: Optional[int] = Field(default=None, ge=0, description="On-hand units; 0 is valid")
+    days_to_successor: Optional[int] = Field(default=None, ge=0)
+    model_source: ModelSource = "synthetic"
 
+# NOTE: this is the ONLY definition of SimulationRequest. An earlier duplicate of this
+# class existed further up the module and silently shadowed the validated version, so
+# edits to that first copy had no effect on the live endpoint.
 @router.post("/simulate")
 def simulate_price(req: SimulationRequest):
-    """Simulates expected daily demand and profitability for an arbitrary price point."""
-    forecaster, _, optimizer = get_models()
-    products_df, costs_df, competitors_df = get_catalog_and_meta()
-    
-    p_row = products_df[products_df["product_id"] == req.product_id]
-    if p_row.empty:
-        raise HTTPException(status_code=404, detail="Product not found")
-    
-    p_info = p_row.iloc[0]
-    c_info = costs_df[costs_df["product_id"] == req.product_id].iloc[0]
-    
-    latest_date = competitors_df["date"].max()
-    comp_row = competitors_df[(competitors_df["date"] == latest_date) & (competitors_df["product_id"] == req.product_id)]
-    
-    mrp = float(p_info["mrp"])
-    unit_cost = float(c_info["unit_cost"])
-    comp_avg = float(req.competitor_avg_price or comp_row["competitor_price"].mean())
-    comp_min = float(req.competitor_min_price or comp_row["competitor_price"].min())
-    inv = int(req.inventory or 200)
-    days_to_succ = int(req.days_to_successor or p_info["days_to_successor"])
+    """
+    Simulates expected daily demand and lifecycle profitability for an arbitrary price point.
+    Computes calibrated conformal prediction intervals (P10 - P90) and exact financial metrics
+    matching the LifecycleOptimizer objective function.
+    """
+    source = req.model_source if req.model_source in VALID_MODEL_SOURCES else "synthetic"
 
-    # Predict single point demand
-    daily_demand = forecaster.predict_point(
-        selling_price=req.price,
-        mrp=mrp,
-        competitor_avg_price=comp_avg,
-        competitor_min_price=comp_min,
-        unit_cost=unit_cost,
-        opening_inventory=inv,
-        days_to_successor=days_to_succ
-    )
+    if req.price is None or not np.isfinite(req.price) or req.price <= 0:
+        raise HTTPException(status_code=422, detail="price must be a positive, finite number")
 
-    # 60-day horizon economics
-    horizon = min(float(days_to_succ), 60.0)
-    expected_sales = min(float(inv), daily_demand * horizon)
+    # Legal Metrology compliance is a product invariant: a selling price above MRP is
+    # not a legal scenario, so evaluating profitability there would be meaningless.
+    # Clamp to the ceiling and tell the caller it happened rather than silently
+    # reporting a profit figure for an impossible price.
+    requested_price = float(req.price)
+
+    if source == "kaggle":
+        adapter, _ = get_kaggle_engine()
+        # Do not silently substitute default stats for an unknown SKU: that returned a
+        # confident 200 with invented mrp/cost/profit for a product the model has never
+        # seen. Require the id to exist in the real-data catalog.
+        if req.product_id not in adapter.product_stats:
+            raise HTTPException(
+                status_code=404,
+                detail=(f"Product '{req.product_id}' is not in the real Kaggle catalog. "
+                        f"Use model_source=synthetic for simulated SKUs.")
+            )
+        adapter.current_product_id = req.product_id
+        stats = adapter.product_stats[req.product_id]
+        last_price = float(stats["last_unit_price"])
+        mrp = round(last_price * 1.15, 2)
+        unit_cost = round(last_price * 0.70, 2)
+        comp_avg = float(req.competitor_avg_price or last_price * 0.98)
+        comp_min = float(req.competitor_min_price or last_price * 0.92)
+        inv = int(req.inventory if req.inventory is not None
+                  else load_retail_state().get(req.product_id, {}).get("inventory", FALLBACK_INVENTORY_UNITS))
+        days_to_succ = int(req.days_to_successor if req.days_to_successor is not None else 60)
+
+        point_res = adapter.predict_point(
+            selling_price=req.price,
+            mrp=mrp,
+            competitor_avg_price=comp_avg,
+            competitor_min_price=comp_min,
+            unit_cost=unit_cost,
+            opening_inventory=inv,
+            days_to_successor=days_to_succ,
+            return_interval=True
+        )
+    else:
+        forecaster, _, _ = get_models()
+        products_df, costs_df, competitors_df = get_catalog_and_meta()
+
+        p_row = products_df[products_df["product_id"] == req.product_id]
+        if p_row.empty:
+            raise HTTPException(status_code=404, detail=f"Product '{req.product_id}' not found in synthetic catalog")
+
+        p_info = p_row.iloc[0]
+        cost_match = costs_df[costs_df["product_id"] == req.product_id]
+        unit_cost = float(cost_match.iloc[0]["unit_cost"]) if not cost_match.empty else float(p_info["mrp"]) * 0.7
+
+        latest_date = competitors_df["date"].max()
+        comp_row = competitors_df[(competitors_df["date"] == latest_date) & (competitors_df["product_id"] == req.product_id)]
+
+        mrp = float(p_info["mrp"])
+        comp_avg = float(req.competitor_avg_price or (comp_row["competitor_price"].mean() if not comp_row.empty else mrp * 0.95))
+        comp_min = float(req.competitor_min_price or (comp_row["competitor_price"].min() if not comp_row.empty else mrp * 0.90))
+        inv = int(req.inventory if req.inventory is not None
+                  else load_retail_state().get(req.product_id, {}).get("inventory", FALLBACK_INVENTORY_UNITS))
+        days_to_succ = int(req.days_to_successor if req.days_to_successor is not None else p_info["days_to_successor"])
+
+        point_res = forecaster.predict_point(
+            selling_price=req.price,
+            mrp=mrp,
+            competitor_avg_price=comp_avg,
+            competitor_min_price=comp_min,
+            unit_cost=unit_cost,
+            opening_inventory=inv,
+            days_to_successor=days_to_succ,
+            return_interval=True
+        )
+
+    if isinstance(point_res, tuple) and len(point_res) == 3:
+        daily_demand, demand_lo, demand_hi = point_res
+    else:
+        daily_demand = float(point_res)
+        demand_lo, demand_hi = daily_demand, daily_demand
+
+    # Apply the MRP ceiling now that mrp is known for both model sources.
+    effective_price = min(requested_price, float(mrp))
+    price_clamped = effective_price < requested_price - 1e-9
+
+    daily_finance_rate = 0.12 / 365.0
+    daily_holding_rate = 0.18 / 365.0
+    depreciation_penalty_rate = 0.25
+    horizon_days = min(float(days_to_succ), 60.0)
+
+    expected_sales = min(float(inv), daily_demand * horizon_days)
     leftover = max(0.0, float(inv) - expected_sales)
-    revenue = expected_sales * req.price
-    margin = req.price - unit_cost
+    revenue = expected_sales * effective_price
+    margin = effective_price - unit_cost
     gross_profit = expected_sales * margin
-    
-    # Holding & depreciation cost
-    holding_cost = 0.5 * (float(inv) + leftover) * unit_cost * 0.0005 * horizon
-    deprec_loss = leftover * unit_cost * 0.25
+
+    holding_cost = ((float(inv) + leftover) / 2.0) * unit_cost * (daily_holding_rate + daily_finance_rate) * horizon_days
+    deprec_loss = leftover * unit_cost * depreciation_penalty_rate
     net_profit = gross_profit - holding_cost - deprec_loss
+
+    # Conformal uncertainty bounds on net profit
+    s_lo = min(float(inv), demand_lo * horizon_days)
+    l_lo = max(0.0, float(inv) - s_lo)
+    carr_lo = ((float(inv) + l_lo) / 2.0) * unit_cost * (daily_holding_rate + daily_finance_rate) * horizon_days
+    prof_lo = (s_lo * margin) - carr_lo - (l_lo * unit_cost * depreciation_penalty_rate)
+
+    s_hi = min(float(inv), demand_hi * horizon_days)
+    l_hi = max(0.0, float(inv) - s_hi)
+    carr_hi = ((float(inv) + l_hi) / 2.0) * unit_cost * (daily_holding_rate + daily_finance_rate) * horizon_days
+    prof_hi = (s_hi * margin) - carr_hi - (l_hi * unit_cost * depreciation_penalty_rate)
 
     clearance_days = float(inv) / (daily_demand + 1e-5)
     clearance_prob = min(1.0, (daily_demand * float(days_to_succ)) / (float(inv) + 1e-5))
@@ -675,14 +901,23 @@ def simulate_price(req: SimulationRequest):
     return {
         "status": "success",
         "product_id": req.product_id,
-        "simulated_price": req.price,
+        "model_source": source,
+        "simulated_price": effective_price,
+        "requested_price": requested_price,
+        "price_clamped_to_mrp": price_clamped,
         "mrp": mrp,
         "unit_cost": unit_cost,
         "daily_demand": round(daily_demand, 2),
+        "daily_demand_lower": round(demand_lo, 2),
+        "daily_demand_upper": round(demand_hi, 2),
         "expected_sales": round(expected_sales, 1),
         "leftover_inventory": round(leftover, 1),
         "projected_revenue": round(revenue, 2),
+        "holding_and_finance_cost": round(holding_cost, 2),
+        "depreciation_loss": round(deprec_loss, 2),
         "expected_net_profit": round(net_profit, 2),
+        "expected_net_profit_lower": round(prof_lo, 2),
+        "expected_net_profit_upper": round(prof_hi, 2),
         "clearance_days": round(clearance_days, 1),
         "clearance_probability": round(clearance_prob, 3),
         "margin_per_unit": round(margin, 2)

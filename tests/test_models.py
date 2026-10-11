@@ -97,3 +97,79 @@ def test_elasticity_recovery():
         e_pixel = results["SKU_PIXEL_10_PRO"]["elasticity"]
         if e_iphone is not None and e_pixel is not None:
             assert e_iphone > e_pixel, f"iPhone 16 elasticity ({e_iphone}) should exceed Pixel 10 Pro ({e_pixel})"
+
+def test_prediction_intervals_validity():
+    """Verify that conformal prediction intervals satisfy lower <= point <= upper and are strictly non-increasing."""
+    forecaster = DemandForecaster(model_type="lightgbm")
+    forecaster.load()
+
+    # 1. Point prediction with intervals
+    point_res = forecaster.predict_point(
+        selling_price=79999.0,
+        mrp=84999.0,
+        competitor_avg_price=77999.0,
+        competitor_min_price=76999.0,
+        unit_cost=68000.0,
+        opening_inventory=800,
+        days_to_successor=60,
+        return_interval=True
+    )
+    assert isinstance(point_res, tuple) and len(point_res) == 3
+    pred, lo, hi = point_res
+    assert lo <= pred <= hi or np.isclose(lo, pred)
+
+    # 2. Curve prediction with intervals
+    prices = np.linspace(72000.0, 84999.0, 25)
+    curve_res = forecaster.predict_demand_curve(
+        candidate_prices=prices,
+        mrp=84999.0,
+        competitor_avg_price=77999.0,
+        competitor_min_price=76999.0,
+        unit_cost=68000.0,
+        opening_inventory=800,
+        days_to_successor=60,
+        return_intervals=True
+    )
+    assert isinstance(curve_res, tuple) and len(curve_res) == 3
+    demands, demands_lo, demands_hi = curve_res
+    assert len(demands) == len(prices)
+    assert len(demands_lo) == len(prices)
+    assert len(demands_hi) == len(prices)
+
+    # Coverage ordering at all price points
+    for d_l, d, d_h in zip(demands_lo, demands, demands_hi):
+        assert d_l <= d <= d_h or np.isclose(d_l, d)
+
+    # Monotonicity check on upper and lower bounds
+    assert ((np.diff(demands_lo) > 1e-4).sum()) == 0, "Lower demand bound must be monotonic non-increasing"
+    assert ((np.diff(demands_hi) > 1e-4).sum()) == 0, "Upper demand bound must be monotonic non-increasing"
+
+def test_optimizer_prediction_intervals():
+    """Verify that LifecycleOptimizer returns calibrated uncertainty bands for demand and profit."""
+    from src.optimization.lifecycle_optimizer import LifecycleOptimizer
+    forecaster = DemandForecaster(model_type="lightgbm")
+    forecaster.load()
+    optimizer = LifecycleOptimizer(forecaster)
+
+    res = optimizer.optimize_sku(
+        product_id="SKU_IPHONE_17_256",
+        product_name="Apple iPhone 17 (256GB)",
+        current_price=79999.0,
+        mrp=84999.0,
+        unit_cost=68000.0,
+        current_inventory=300,
+        competitor_avg_price=77999.0,
+        competitor_min_price=76999.0,
+        days_to_successor=60
+    )
+
+    assert res.demand_curve_lower is not None
+    assert res.demand_curve_upper is not None
+    assert res.profit_curve_lower is not None
+    assert res.profit_curve_upper is not None
+    assert len(res.demand_curve_lower) == len(res.demand_curve)
+    assert len(res.demand_curve_upper) == len(res.demand_curve)
+    assert len(res.profit_curve_lower) == len(res.profit_curve)
+    assert len(res.profit_curve_upper) == len(res.profit_curve)
+
+

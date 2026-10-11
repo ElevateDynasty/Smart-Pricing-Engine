@@ -65,6 +65,10 @@ class OptimizationResult:
     feasible_prices: List[float]
     profit_curve: List[float]
     demand_curve: List[float]
+    demand_curve_lower: Optional[List[float]] = None
+    demand_curve_upper: Optional[List[float]] = None
+    profit_curve_lower: Optional[List[float]] = None
+    profit_curve_upper: Optional[List[float]] = None
 
 class LifecycleOptimizer:
     def __init__(self, demand_forecaster: Optional[DemandForecaster] = None):
@@ -124,24 +128,46 @@ class LifecycleOptimizer:
             (feasible_prices >= min_allowed_price) & (feasible_prices <= max_allowed_price)
         ]
 
-        # 2. Predict Demand Across All Candidate Prices
-        predicted_demands = self.forecaster.predict_demand_curve(
-            candidate_prices=feasible_prices,
-            mrp=mrp,
-            competitor_avg_price=competitor_avg_price,
-            competitor_min_price=competitor_min_price,
-            unit_cost=unit_cost,
-            opening_inventory=current_inventory,
-            days_to_successor=days_to_successor,
-            competitor_stockout_flag=competitor_stockout_flag,
-            footfall_index=footfall_index
-        )
+        # 2. Predict Demand Across All Candidate Prices (with calibrated prediction intervals)
+        try:
+            curve_res = self.forecaster.predict_demand_curve(
+                candidate_prices=feasible_prices,
+                mrp=mrp,
+                competitor_avg_price=competitor_avg_price,
+                competitor_min_price=competitor_min_price,
+                unit_cost=unit_cost,
+                opening_inventory=current_inventory,
+                days_to_successor=days_to_successor,
+                competitor_stockout_flag=competitor_stockout_flag,
+                footfall_index=footfall_index,
+                return_intervals=True
+            )
+            if isinstance(curve_res, tuple) and len(curve_res) == 3:
+                predicted_demands, demands_lo, demands_hi = curve_res
+            else:
+                predicted_demands = curve_res
+                demands_lo, demands_hi = predicted_demands, predicted_demands
+        except TypeError:
+            predicted_demands = self.forecaster.predict_demand_curve(
+                candidate_prices=feasible_prices,
+                mrp=mrp,
+                competitor_avg_price=competitor_avg_price,
+                competitor_min_price=competitor_min_price,
+                unit_cost=unit_cost,
+                opening_inventory=current_inventory,
+                days_to_successor=days_to_successor,
+                competitor_stockout_flag=competitor_stockout_flag,
+                footfall_index=footfall_index
+            )
+            demands_lo, demands_hi = predicted_demands, predicted_demands
 
         daily_finance_rate = annual_finance_rate / 365.0
 
         best_profit = float("-inf")
         best_idx = 0
         profit_curve = []
+        profit_curve_lower = []
+        profit_curve_upper = []
         metrics_list = []
 
         # Model-aware variance: residual variance from forecaster RMSE (per-day error)
@@ -189,6 +215,21 @@ class LifecycleOptimizer:
             # Net Lifecycle Profit
             net_lifecycle_profit = gross_margin - carrying_costs - depreciation_loss
             profit_curve.append(net_lifecycle_profit)
+
+            # Evaluate profit uncertainty bounds from demand P10/P90 limits
+            d_lo = max(0.01, float(demands_lo[i]))
+            s_lo = min(float(current_inventory), d_lo * horizon_days)
+            l_lo = max(0.0, float(current_inventory) - s_lo)
+            carr_lo = ((current_inventory + l_lo) / 2.0) * unit_cost * (daily_holding_rate + daily_finance_rate) * horizon_days
+            prof_lo = (s_lo * (price - unit_cost)) - carr_lo - (l_lo * unit_cost * depreciation_penalty_rate)
+            profit_curve_lower.append(prof_lo)
+
+            d_hi = max(0.01, float(demands_hi[i]))
+            s_hi = min(float(current_inventory), d_hi * horizon_days)
+            l_hi = max(0.0, float(current_inventory) - s_hi)
+            carr_hi = ((current_inventory + l_hi) / 2.0) * unit_cost * (daily_holding_rate + daily_finance_rate) * horizon_days
+            prof_hi = (s_hi * (price - unit_cost)) - carr_hi - (l_hi * unit_cost * depreciation_penalty_rate)
+            profit_curve_upper.append(prof_hi)
 
             metrics_list.append({
                 "price": price,
@@ -311,5 +352,9 @@ class LifecycleOptimizer:
             business_reason=business_reason,
             feasible_prices=[float(p) for p in feasible_prices],
             profit_curve=[float(p) for p in profit_curve],
-            demand_curve=[float(d) for d in predicted_demands]
+            demand_curve=[float(d) for d in predicted_demands],
+            demand_curve_lower=[float(d) for d in demands_lo],
+            demand_curve_upper=[float(d) for d in demands_hi],
+            profit_curve_lower=[float(p) for p in profit_curve_lower],
+            profit_curve_upper=[float(p) for p in profit_curve_upper]
         )

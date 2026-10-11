@@ -46,7 +46,9 @@ class KaggleRetailPipeline:
             "weekday",
             "weekend",
             "holiday",
-            "month"
+            "month",
+            "volume",
+            "cat_avg_qty"
         ]
 
     def ensure_dataset(self) -> Path:
@@ -98,43 +100,65 @@ class KaggleRetailPipeline:
         """
         Train LightGBM regressor to predict sales quantity (qty).
 
-        Uses a TIME-ORDERED 80/20 split on (year, month) — training on earlier
-        months, validating on strictly later months — so real-data metrics are
-        leakage-free and honest.
+        Uses a TIME-ORDERED 80/20 split on (year, month) with log(1 + qty) target
+        and train-only category target encoding for honest, leakage-free validation.
         """
         if {"year", "month"}.issubset(df.columns):
             df = df.sort_values(["year", "month"]).reset_index(drop=True)
 
-        X = df[self.feature_names].copy()
-        y = df["qty"]
+        split_idx = int(len(df) * 0.8)
+        train_df = df.iloc[:split_idx]
 
-        split_idx = int(len(X) * 0.8)
+        # Leakage-free category target encoding computed strictly on training records
+        cat_map = train_df.groupby("product_category_name")["qty"].mean().to_dict()
+        overall_mean = float(train_df["qty"].mean())
+
+        df = df.copy()
+        df["cat_avg_qty"] = df["product_category_name"].map(cat_map).fillna(overall_mean)
+        if "volume" not in df.columns:
+            df["volume"] = 1000.0
+
+        X = df[self.feature_names].copy()
+        y_raw = df["qty"]
+        y_log = np.log1p(y_raw)
+
         X_train, X_val = X.iloc[:split_idx], X.iloc[split_idx:]
-        y_train, y_val = y.iloc[:split_idx], y.iloc[split_idx:]
+        y_train, y_val = y_log.iloc[:split_idx], y_log.iloc[split_idx:]
+        y_val_raw = y_raw.iloc[split_idx:]
 
         model = lgb.LGBMRegressor(
-            n_estimators=160,
-            learning_rate=0.04,
-            num_leaves=25,
-            min_child_samples=5,
+            n_estimators=120,
+            learning_rate=0.03,
+            num_leaves=12,
+            min_child_samples=6,
+            subsample=0.85,
+            colsample_bytree=0.8,
             random_state=42,
             verbosity=-1
         )
         model.fit(X_train, y_train)
 
-        preds = np.maximum(0, model.predict(X_val))
-        mae = float(mean_absolute_error(y_val, preds))
-        rmse = float(np.sqrt(mean_squared_error(y_val, preds)))
-        r2 = float(r2_score(y_val, preds))
+        preds_log = model.predict(X_val)
+        preds = np.maximum(0, np.expm1(preds_log))
+        mae = float(mean_absolute_error(y_val_raw, preds))
+        rmse = float(np.sqrt(mean_squared_error(y_val_raw, preds)))
+        r2 = float(r2_score(y_val_raw, preds))
+
+        # Empirical residual quantiles for conformal prediction intervals
+        res = y_val_raw.values - preds
+        res_p10 = float(np.percentile(res, 10))
+        res_p90 = float(np.percentile(res, 90))
 
         self.model = model
         self.metrics = {
             "mae": round(mae, 3),
             "rmse": round(rmse, 3),
             "r2": round(r2, 3),
+            "res_p10": round(res_p10, 3),
+            "res_p90": round(res_p90, 3),
             "train_samples": len(X_train),
             "val_samples": len(X_val),
-            "split_strategy": "time-ordered 80/20 on (year, month) — leakage-free",
+            "split_strategy": "time-ordered 80/20 on (year, month) with log(1+qty) target — leakage-free",
             "leakage_free": True
         }
 
@@ -142,12 +166,14 @@ class KaggleRetailPipeline:
         importances = dict(zip(self.feature_names, model.feature_importances_))
         sorted_importance = sorted(importances.items(), key=lambda x: x[1], reverse=True)
 
-        # Save model
+        # Save model bundle
         joblib.dump({
             "model": model,
             "feature_names": self.feature_names,
             "metrics": self.metrics,
-            "feature_importances": sorted_importance
+            "feature_importances": sorted_importance,
+            "category_mapping": cat_map,
+            "overall_mean_qty": overall_mean
         }, KAGGLE_MODEL_FILE)
 
         return {
@@ -273,6 +299,8 @@ class KaggleDemandAdapter:
         self.model = bundle["model"]
         self.feature_names = bundle["feature_names"]
         self.metrics = bundle.get("metrics", {})
+        self.category_mapping = bundle.get("category_mapping", {})
+        self.overall_mean_qty = bundle.get("overall_mean_qty", 14.0)
         self.current_product_id: Optional[str] = None
         self._build_product_stats()
 
@@ -284,6 +312,7 @@ class KaggleDemandAdapter:
                 "product_score": float(sub["product_score"].median()),
                 "customers": float(sub["customers"].median()),
                 "freight_price": float(sub["freight_price"].median()),
+                "volume": float(sub["volume"].median()) if "volume" in sub.columns else 1000.0,
                 "weekday": int(sub["weekday"].mode().iloc[0]) if len(sub) else 2,
                 "weekend": int(sub["weekend"].mode().iloc[0]) if len(sub) else 0,
                 "holiday": int(sub["holiday"].mode().iloc[0]) if len(sub) else 0,
@@ -300,6 +329,7 @@ class KaggleDemandAdapter:
             "product_score": float(df["product_score"].median()),
             "customers": float(df["customers"].median()),
             "freight_price": float(df["freight_price"].median()),
+            "volume": float(df["volume"].median()) if "volume" in df.columns else 1000.0,
             "weekday": 2, "weekend": 0, "holiday": 0,
             "month": int(df["month"].max()),
             "last_unit_price": float(df["unit_price"].median()),
@@ -312,7 +342,10 @@ class KaggleDemandAdapter:
              competitor_min_price: float) -> pd.DataFrame:
         stats = self.product_stats.get(self.current_product_id, self.default_stats)
         lag = stats["last_unit_price"]
-        row = pd.DataFrame([{
+        cat = stats.get("category", "unknown")
+        cat_avg = self.category_mapping.get(cat, self.overall_mean_qty)
+
+        row_dict = {
             "unit_price": selling_price,
             "competitor_avg_price": competitor_avg_price,
             "competitor_min_price": competitor_min_price,
@@ -327,7 +360,13 @@ class KaggleDemandAdapter:
             "weekend": stats["weekend"],
             "holiday": stats["holiday"],
             "month": stats["month"]
-        }])[self.feature_names]
+        }
+        if "volume" in self.feature_names:
+            row_dict["volume"] = stats.get("volume", 1000.0)
+        if "cat_avg_qty" in self.feature_names:
+            row_dict["cat_avg_qty"] = cat_avg
+
+        row = pd.DataFrame([row_dict])[self.feature_names]
         return row
 
     def predict_point(
@@ -345,8 +384,9 @@ class KaggleDemandAdapter:
         is_weekend: int = 0,
         is_festive_season: int = 0,
         day_of_week: int = 2,
-        month: int = 9
-    ) -> float:
+        month: int = 9,
+        return_interval: bool = False
+    ):
         """Predict expected daily qty for a product from the real dataset.
 
         mrp / unit_cost / inventory / days_to_successor are accepted for
@@ -354,8 +394,15 @@ class KaggleDemandAdapter:
         schema; the demand model itself is unaffected by them.
         """
         row = self._row(selling_price, competitor_avg_price, competitor_min_price)
-        pred = float(self.model.predict(row)[0])
-        return max(0.0, pred)
+        pred_log = float(self.model.predict(row)[0])
+        val = max(0.0, float(np.expm1(pred_log)))
+        if not return_interval:
+            return val
+
+        rmse = float(self.metrics.get("rmse", 5.0))
+        p10 = float(self.metrics.get("res_p10", -1.28 * rmse))
+        p90 = float(self.metrics.get("res_p90", 1.28 * rmse))
+        return val, max(0.0, val + p10), max(0.0, val + p90)
 
     def predict_demand_curve(
         self,
@@ -367,15 +414,25 @@ class KaggleDemandAdapter:
         opening_inventory: int,
         days_to_successor: int = 60,
         competitor_stockout_flag: int = 0,
-        footfall_index: float = 1.2
-    ) -> np.ndarray:
+        footfall_index: float = 1.2,
+        return_intervals: bool = False
+    ):
         """Evaluate demand across an array of candidate prices (real-data model)."""
         rows = []
         for p in candidate_prices:
             rows.append(self._row(float(p), competitor_avg_price, competitor_min_price))
         features_df = pd.concat(rows, ignore_index=True)[self.feature_names]
-        preds = self.model.predict(features_df)
-        return np.maximum(0.0, preds)
+        preds_log = self.model.predict(features_df)
+        preds = np.maximum(0.0, np.expm1(preds_log))
+        if not return_intervals:
+            return preds
+
+        rmse = float(self.metrics.get("rmse", 5.0))
+        p10 = float(self.metrics.get("res_p10", -1.28 * rmse))
+        p90 = float(self.metrics.get("res_p90", 1.28 * rmse))
+        preds_lo = np.maximum(0.0, preds + p10)
+        preds_hi = np.maximum(0.0, preds + p90)
+        return preds, preds_lo, preds_hi
 
     def explain_point(
         self,
@@ -396,10 +453,12 @@ class KaggleDemandAdapter:
                 "abs_contribution": round(abs(float(val)), 4)
             })
         factors.sort(key=lambda f: f["abs_contribution"], reverse=True)
+        pred_log = bias + sum(contribs[:-1])
+        pred_val = max(0.0, float(np.expm1(pred_log)))
         return {
             "method": "TreeSHAP (LightGBM native pred_contrib)",
-            "base_value": round(bias, 4),
-            "prediction": round(max(0.0, bias + sum(contribs[:-1])), 4),
+            "base_value": round(float(np.expm1(bias)), 4),
+            "prediction": round(pred_val, 4),
             "top_factors": factors[:6]
         }
 
@@ -407,3 +466,4 @@ class KaggleDemandAdapter:
 if __name__ == "__main__":
     pipeline = KaggleRetailPipeline()
     pipeline.run_kaggle_pipeline()
+

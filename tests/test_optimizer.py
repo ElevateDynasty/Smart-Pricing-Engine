@@ -68,3 +68,45 @@ def test_multi_store_balancer():
     transfer = analysis["recommended_transfers"][0]
     assert transfer["from_store_id"] == "STORE_2"
     assert transfer["to_store_id"] == "STORE_1"
+
+def test_simulate_endpoint_and_catalog_safety():
+    """Verify POST /api/simulate returns conformal bounds and lifecycle events never mutate products.csv on disk."""
+    import os
+    from fastapi.testclient import TestClient
+    from api.main import app
+    from src.config import SYNTHETIC_DATA_DIR
+
+    client = TestClient(app)
+
+    # 1. Test /api/simulate
+    sim_resp = client.post("/api/simulate", json={
+        "product_id": "SKU_IPHONE_17_256",
+        "price": 79999.0
+    })
+    assert sim_resp.status_code == 200
+    data = sim_resp.json()
+    assert data["status"] == "success"
+    assert "daily_demand" in data
+    assert "daily_demand_lower" in data
+    assert "daily_demand_upper" in data
+    assert data["daily_demand_lower"] <= data["daily_demand"] <= data["daily_demand_upper"]
+    assert "expected_net_profit" in data
+
+    # 2. Test Catalog Mutation Safety (Issue 2)
+    products_csv = SYNTHETIC_DATA_DIR / "products.csv"
+    mtime_before = os.path.getmtime(products_csv)
+
+    evt_resp = client.post("/api/lifecycle-event", json={
+        "product_id": "SKU_IPHONE_17_256",
+        "successor_name": "Apple iPhone 18",
+        "announcement_headline": "Apple Announces iPhone 18",
+        "days_to_successor": 14
+    })
+    assert evt_resp.status_code == 200
+    assert os.path.getmtime(products_csv) == mtime_before, "products.csv must NEVER be mutated on disk"
+
+    # 3. Test Reset Events
+    reset_resp = client.post("/api/reset-events")
+    assert reset_resp.status_code == 200
+    assert os.path.getmtime(products_csv) == mtime_before, "products.csv must remain untouched after reset"
+

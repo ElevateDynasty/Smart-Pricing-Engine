@@ -18,7 +18,21 @@ class ReasonGenerator:
         diff = rec_price - curr_price
 
         # Headline
-        if result.price_action == "Increase Price":
+        if result.price_action == "No Stock":
+            # There are zero units on hand, so there is nothing to mark down, hold or
+            # raise. Falling through to the clearance branch would issue a markdown
+            # order for stock that does not exist.
+            headline = f"No action: {pid} is out of stock at every store"
+            key_rationale = (
+                "Zero units remain on hand as of the latest inventory snapshot, so no pricing "
+                "decision applies: there is no stock to discount, hold or reprice. Replenish or "
+                "re-assort this SKU before applying any price change."
+            )
+            offline_advantage = (
+                "If the product is still in its selling window, securing fresh allocation at the "
+                "current price avoids both a lost sale and an unnecessary margin giveaway."
+            )
+        elif result.price_action == "Increase Price":
             headline = f"Opportunity: Raise {pid} by ₹{diff:,} to capture higher margin"
             key_rationale = (
                 f"Competitors have limited stock or out-of-stock notices, and consumer demand is relatively "

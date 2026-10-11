@@ -40,10 +40,17 @@ env/
 *.code-workspace
 
 # ---- Generated data files & raw downloads ----
+.review_baseline/
 data/raw/
 data/processed/
 *.zip
 *.tar.gz
+_*probe*.py
+_api_verify.py
+_env_check.py
+_contract_probe/
+audit_*
+
 
 # ---- Trained model artifacts & binaries ----
 models_saved/
