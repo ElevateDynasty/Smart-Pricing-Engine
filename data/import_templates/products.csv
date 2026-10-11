@@ -1,0 +1,3 @@
+product_id,brand,model,variant,category,ram_gb,storage_gb,mrp,launch_date,successor_model,days_to_successor,base_elasticity,base_daily_demand,target_segment
+SKU_IPHONE_17_256,Apple,iPhone 17,256GB Midnight Black,Premium Flagship,8,256,84999,2025-11-05,iPhone 18,60,2.4,9.8,Affluent Tech Enthusiasts
+SKU_REDMI_NOTE_15_PRO,Xiaomi,Redmi Note 15 Pro,256GB Storm Grey,Mid-Range Value,8,256,28999,2025-09-20,Redmi Note 16,160,2.1,14.5,Value Premium Buyers

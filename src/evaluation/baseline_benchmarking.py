@@ -49,7 +49,7 @@ class BaselineBenchmarking:
         strategies = [
             ("Baseline A: Status Quo", current_price),
             ("Baseline B: Match Competitor", competitor_min_price),
-            ("Baseline C: Fixed 15% Markdown", round(current_price * 0.85, -2)),
+            ("Baseline C: Fixed 15% Markdown", max(unit_cost, round(current_price * 0.85, -2))),
             ("AI Pricing Engine", ai_res.recommended_price)
         ]
 

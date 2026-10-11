@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Enterprise AI Dynamic Pricing & Inventory Lifecycle Optimization Engine for Consumer Electronics Retail.">
+    <title>ApexPricing | Enterprise Pricing & Lifecycle Engine</title>
+    
+    <!-- Preconnect & Fonts: Outfit (Display) & JetBrains Mono (Data) & Inter (Body) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- FontAwesome for High-Precision Glyphs -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" integrity="sha512-iecdLmaskl7CVkqkXNQ/ZH/XLlvWZOJyj7Yy7tcenmpD1ypASozpmT/E0iPtmFIB46ZmdtAc9eNBvH0H/ZpiBw==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+    <!-- Design-Engineered Stylesheet -->
+    <link rel="stylesheet" href="./css/style.css">
+</head>
+<body class="terminal-dark">
+    <!-- Scroll Progress Indicator -->
+    <div id="scroll-progress" class="scroll-progress" aria-hidden="true"></div>
+
+    <!-- Ambient Background FX Layer (CSS-driven drift) -->
+    <div class="bg-fx" aria-hidden="true">
+        <div class="fx-orb fx-orb-a"></div>
+        <div class="fx-orb fx-orb-b"></div>
+        <div class="fx-grid"></div>
+    </div>
+
+    <!-- Mobile Header Bar (Small Viewports Only) -->
+    <header class="mobile-header">
+        <div class="brand-monogram">
+            <span class="mono-symbol">AP</span>
+            <span class="brand-wordmark">ApexPricing</span>
+        </div>
+        <button id="mobile-menu-toggle" class="btn-terminal-icon" aria-label="Toggle Navigation Menu">
+            <i class="fa-solid fa-bars-staggered"></i>
+        </button>
+    </header>
+
+    <div class="app-shell">
+        <!-- Sidebar Backdrop for Mobile -->
+        <div id="sidebar-backdrop" class="sidebar-backdrop"></div>
+
+        <!-- Desktop Command Sidebar -->
+        <aside id="sidebar" class="sidebar">
+            <div class="sidebar-top">
+                <div class="brand-lockup">
+                    <div class="brand-icon-box">
+                        <i class="fa-solid fa-cube"></i>
+                    </div>
+                    <div>
+                        <h2 class="brand-title">APEXPRICING</h2>
+                        <span class="brand-status-badge">
+                            <span class="pulse-beacon"></span> ONLINE &bull; METRO-IN
+                        </span>
+                    </div>
+                </div>
+
+                <div class="system-telemetry-box">
+                    <div class="telemetry-row">
+                        <span class="telemetry-key">CORE ENGINE</span>
+                        <span class="telemetry-val mono-num">LGBM-2.4-M</span>
+                    </div>
+                    <div class="telemetry-row">
+                        <span class="telemetry-key">CONSTRAINTS</span>
+                        <span class="telemetry-val">MRP STRICT</span>
+                    </div>
+                    <div class="telemetry-row">
+                        <span class="telemetry-key">LATENCY</span>
+                        <span class="telemetry-val text-accent mono-num">&lt; 2.1ms</span>
+                    </div>
+                    <div class="telemetry-row">
+                        <span class="telemetry-key">DATA SOURCE</span>
+                        <span class="telemetry-val mono-num" id="telemetry-dataset">SYNTHETIC</span>
+                    </div>
+                </div>
+            </div>
+
+            <nav class="nav-system">
+                <div class="nav-header-label">CONTROL PLANES</div>
+                <ul class="nav-list">
+                    <li class="active" data-view="overview" id="nav-overview">
+                        <i class="fa-solid fa-chart-line"></i>
+                        <span>Portfolio Summary</span>
+                    </li>
+                    <li data-view="sku-pricing" id="nav-sku-pricing">
+                        <i class="fa-solid fa-table-cells-large"></i>
+                        <span>SKU Matrix</span>
+                    </li>
+                    <li data-view="simulator" id="nav-simulator">
+                        <i class="fa-solid fa-bezier-curve"></i>
+                        <span>Elasticity Simulator</span>
+                    </li>
+                    <li data-view="competitors" id="nav-competitors">
+                        <i class="fa-solid fa-radar"></i>
+                        <span>Market Intelligence</span>
+                    </li>
+                    <li data-view="transfers" id="nav-transfers">
+                        <i class="fa-solid fa-right-left"></i>
+                        <span>Store Balancing</span>
+                    </li>
+                </ul>
+            </nav>
+
+            <div class="sidebar-bottom">
+                <div class="quick-recalc-box">
+                    <button class="btn btn-secondary btn-sm w-full" id="btn-reoptimize" onclick="app.refreshOptimizations()">
+                        <i class="fa-solid fa-arrows-rotate"></i> Recalculate Engine
+                    </button>
+                </div>
+                <div class="legal-compliance-meta">
+                    Legal Metrology Act, 2009 (Rule 6). Maximum Retail Price enforced mathematically.
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Surface -->
+        <main class="main-surface">
+            <!-- Global Utility Bar -->
+            <header class="utility-bar">
+                <div class="utility-left">
+                    <span class="scope-tag">REGION: INDIA ELECTRONICS</span>
+                    <span class="scope-divider">/</span>
+                    <span class="active-scope-name" id="current-view-title">Portfolio Summary</span>
+                </div>
+                <div class="utility-right">
+                    <span class="clock-display mono-num" id="live-clock">--:--:--</span>
+                    <div class="source-toggle" role="tablist" aria-label="Training data source">
+                        <button class="source-btn active" id="src-synthetic" onclick="app.switchDataSource('synthetic')">SYNTHETIC</button>
+                        <button class="source-btn" id="src-kaggle" onclick="app.switchDataSource('kaggle')">REAL KAGGLE</button>
+                    </div>
+                    <button class="btn btn-outline btn-sm" onclick="app.openLaunchModal()">
+                        <i class="fa-solid fa-bolt text-accent"></i> Simulate Launch Signal
+                    </button>
+                    <button class="btn btn-primary btn-sm" onclick="app.refreshOptimizations()">
+                        <i class="fa-solid fa-rotate"></i> Sync Data
+                    </button>
+                </div>
+            </header>
+
+            <!-- High-Priority Market Signal Wire (Tech Announcement Alert) -->
+            <section id="tech-launch-banner" class="market-signal-wire hidden" aria-live="polite">
+                <div class="wire-left">
+                    <span class="wire-tag">
+                        <span class="pulse-beacon beacon-alert"></span> MARKET SIGNAL // SUCCESSOR ANNOUNCED
+                    </span>
+                    <div class="wire-copy">
+                        <h4 id="banner-title" class="wire-headline">Apple Keynote: iPhone 18 Series Announced</h4>
+                        <p id="banner-desc" class="wire-subtext">Predecessor inventory horizon shifted from 60 to 14 days. Tactical markdown calculated to prevent obsolescence penalties.</p>
+                    </div>
+                </div>
+                <div class="wire-actions">
+                    <button class="btn btn-xs btn-primary" onclick="app.inspectActiveEvent()">
+                        <i class="fa-solid fa-arrow-up-right-from-square"></i> Inspect Pricing Action
+                    </button>
+                    <button class="btn btn-xs btn-outline" onclick="app.resetLifecycleEvents()">
+                        <i class="fa-solid fa-arrow-rotate-left"></i> Revert Baseline
+                    </button>
+                </div>
+            </section>
+
+            <!-- Skeletal Loader Container (Replaces generic circular spinners) -->
+            <div id="loading-overlay" class="skeletal-overlay hidden">
+                <div class="skeletal-shimmer-card">
+                    <div class="shimmer-line title-shimmer"></div>
+                    <div class="shimmer-line text-shimmer"></div>
+                    <div class="shimmer-grid">
+                        <div class="shimmer-box"></div>
+                        <div class="shimmer-box"></div>
+                        <div class="shimmer-box"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Multi-View Container -->
+            <div id="views-container">
+                <!-- 1. Overview View -->
+                <section id="view-overview" class="view active">
+                    <!-- Asymmetric Terminal Header -->
+                    <div class="terminal-banner">
+                        <div class="banner-content-col">
+                            <div class="metadata-crumbs">
+                                <span>SYSTEM OVERVIEW</span>
+                                <span>&bull;</span>
+                                <span>MULTI-STORE RETAIL HARNESS</span>
+                            </div>
+                            <h1 class="display-headline">
+                                Lifecycle Profit Maximization & Clearance Balancing
+                            </h1>
+                            <p class="editorial-subtext">
+                                Dynamically determines optimal selling prices across retail stock by balancing empirical price elasticity against inventory holding costs, financing charges, and imminent successor depreciation write-downs.
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- Integrated Architectural Metric Ribbon (Anti-Card Overuse) -->
+                    <div class="metric-ribbon">
+                        <div class="metric-strip-item">
+                            <span class="metric-ribbon-label">PROJECTED PROFIT LIFT</span>
+                            <div class="metric-ribbon-val text-success mono-num" id="kpi-profit-lift">₹0</div>
+                            <span class="metric-ribbon-delta text-success" id="kpi-profit-lift-pct">+0.0% vs Status Quo</span>
+                        </div>
+                        <div class="metric-strip-item">
+                            <span class="metric-ribbon-label">PORTFOLIO INVENTORY</span>
+                            <div class="metric-ribbon-val mono-num" id="kpi-inventory-units">0</div>
+                            <span class="metric-ribbon-delta text-subtle" id="kpi-inventory-value">Catalog Value: ₹0</span>
+                        </div>
+                        <div class="metric-strip-item">
+                            <span class="metric-ribbon-label">TRACKED CATALOG SKUS</span>
+                            <div class="metric-ribbon-val mono-num" id="kpi-total-skus">0</div>
+                            <span class="metric-ribbon-delta text-accent" id="kpi-actions-summary">7 Price Increases &bull; 1 Markdown</span>
+                        </div>
+                        <div class="metric-strip-item">
+                            <span class="metric-ribbon-label">PRE-SUCCESSOR AT RISK</span>
+                            <div class="metric-ribbon-val text-warning mono-num" id="kpi-risk-skus">0</div>
+                            <span class="metric-ribbon-delta text-warning" id="kpi-risk-subtext">Urgent Clearance Horizon</span>
+                        </div>
+                    </div>
+                    
+                    <!-- Split Analytical Section -->
+                    <div class="split-analytics-grid">
+                        <div class="architectural-panel">
+                            <div class="panel-header">
+                                <div>
+                                    <h3 class="panel-title">Net Profit Distribution by SKU</h3>
+                                    <p class="panel-subtitle">Status Quo baseline vs. AI Constrained Lifecycle Optimization</p>
+                                </div>
+                                <span class="mono-badge badge-accent">+129.6% Total Gain</span>
+                            </div>
+                            <div class="chart-canvas-wrapper">
+                                <canvas id="profitComparisonChart"></canvas>
+                            </div>
+                        </div>
+
+                        <div class="architectural-panel">
+                            <div class="panel-header">
+                                <div>
+                                    <h3 class="panel-title">Pricing Policy Breakdown</h3>
+                                    <p class="panel-subtitle">Algorithmic distribution across catalog</p>
+                                </div>
+                                <span class="mono-badge">Solver: LGBM Demand + Constrained Grid Search</span>
+                            </div>
+                            <div class="chart-canvas-wrapper doughnut-fit">
+                                <canvas id="actionDistributionChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Priority Action Ledger -->
+                    <div class="architectural-panel mt-6">
+                        <div class="panel-header">
+                            <div>
+                                <h3 class="panel-title">Prioritized Strategic Opportunities</h3>
+                                <p class="panel-subtitle">High-margin interventions requiring immediate execution</p>
+                            </div>
+                            <button class="btn btn-outline btn-xs" onclick="app.switchView('sku-pricing')">
+                                View Complete Matrix <i class="fa-solid fa-arrow-right"></i>
+                            </button>
+                        </div>
+                        <div class="table-container-scroll">
+                            <table class="terminal-table">
+                                <thead>
+                                    <tr>
+                                        <th>PRODUCT & VARIANT</th>
+                                        <th>CURRENT PRICE</th>
+                                        <th>RECOMMENDED</th>
+                                        <th>EXPECTED LIFT</th>
+                                        <th>STRATEGY</th>
+                                        <th>CLEARANCE PROB</th>
+                                        <th>ACTION</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="top-opportunities-body">
+                                    <!-- Dynamic -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 2. SKU Pricing Matrix View -->
+                <section id="view-sku-pricing" class="view hidden">
+                    <div class="view-header-strip">
+                        <div>
+                            <h2 class="section-headline">Catalog SKU Matrix</h2>
+                            <p class="section-subtext">Optimal price points bounded strictly by Legal Metrology Maximum Retail Price caps.</p>
+                        </div>
+                        <div class="header-actions">
+                            <button class="btn btn-primary btn-sm" onclick="app.refreshOptimizations()">
+                                <i class="fa-solid fa-arrows-rotate"></i> Re-Calculate All
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Precision Filter Bar -->
+                    <div class="filter-wire-toolbar">
+                        <div class="search-terminal-input">
+                            <i class="fa-solid fa-magnifying-glass search-glyph"></i>
+                            <input type="text" id="sku-search-input" placeholder="Search by model, brand, or SKU identifier..." oninput="app.filterTable()">
+                        </div>
+                        <div class="filter-controls-cluster">
+                            <select id="brand-filter" class="terminal-select" onchange="app.filterTable()">
+                                <option value="all">Brand: All</option>
+                                <option value="Apple">Apple</option>
+                                <option value="Samsung">Samsung</option>
+                                <option value="Google">Google</option>
+                                <option value="OnePlus">OnePlus</option>
+                                <option value="Xiaomi">Xiaomi</option>
+                            </select>
+                            <select id="action-filter" class="terminal-select" onchange="app.filterTable()">
+                                <option value="all">Action: All</option>
+                                <option value="Increase Price">Price Increases</option>
+                                <option value="Hold Price">Hold Price</option>
+                                <option value="Slight Reduction">Slight Reduction</option>
+                                <option value="Clearance Markdown">Clearance Markdown</option>
+                            </select>
+                            <select id="risk-filter" class="terminal-select" onchange="app.filterTable()">
+                                <option value="all">Risk: All</option>
+                                <option value="Low Risk">Low Risk</option>
+                                <option value="Medium Risk">Medium Risk</option>
+                                <option value="High Risk">High Risk</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Data Ledger -->
+                    <div class="architectural-panel">
+                        <div class="table-container-scroll">
+                            <table class="terminal-table">
+                                <thead>
+                                    <tr>
+                                        <th>PRODUCT IDENTIFIER</th>
+                                        <th>CURRENT</th>
+                                        <th>AI OPTIMAL</th>
+                                        <th>NET LIFT</th>
+                                        <th>HORIZON RUN-RATE</th>
+                                        <th>INVENTORY STATE</th>
+                                        <th>LEGAL MRP</th>
+                                        <th>AUDIT</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="sku-table-body">
+                                    <!-- Dynamic -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 3. Demand & Elasticity Simulator View -->
+                <section id="view-simulator" class="view hidden">
+                    <div class="view-header-strip">
+                        <div>
+                            <h2 class="section-headline">Empirical Elasticity & Demand Simulator</h2>
+                            <p class="section-subtext">Simulate real-time revenue and net margin responses across candidate pricing tiers.</p>
+                        </div>
+                    </div>
+
+                    <div class="simulator-cockpit-grid">
+                        <!-- Control Console -->
+                        <div class="architectural-panel console-column">
+                            <div class="panel-header">
+                                <h3 class="panel-title">Simulation Parameters</h3>
+                            </div>
+
+                            <div class="console-field mt-3">
+                                <label for="sim-product-select" class="field-label">TARGET SKU</label>
+                                <select id="sim-product-select" class="terminal-select w-full" onchange="app.loadSimulatorProduct()">
+                                    <!-- Dynamic -->
+                                </select>
+                            </div>
+
+                            <div class="slider-instrument mt-5">
+                                <div class="instrument-readout">
+                                    <span class="instrument-label">CANDIDATE PRICE</span>
+                                    <span class="instrument-number mono-num" id="sim-price-display">₹78,500</span>
+                                </div>
+                                <input type="range" id="sim-price-slider" class="terminal-slider" min="50000" max="90000" step="100" oninput="app.onSliderChange()">
+                                <div class="instrument-bounds mono-num">
+                                    <span id="sim-min-price">Cost: ₹0</span>
+                                    <span id="sim-mrp-price" class="text-warning">MRP: ₹0</span>
+                                </div>
+                            </div>
+
+                            <div class="stepper-cluster mt-3">
+                                <button class="btn btn-outline btn-xs" onclick="app.setSimPriceRel(-2000)">-₹2,000</button>
+                                <button class="btn btn-outline btn-xs" onclick="app.setSimPriceRel(-500)">-₹500</button>
+                                <button class="btn btn-accent btn-xs" onclick="app.resetSimToRecommended()">AI Optimal</button>
+                                <button class="btn btn-outline btn-xs" onclick="app.setSimPriceRel(+500)">+₹500</button>
+                                <button class="btn btn-outline btn-xs" onclick="app.setSimPriceRel(+2000)">+₹2,000</button>
+                            </div>
+
+                            <div class="spec-matrix-box mt-5">
+                                <div class="spec-row">
+                                    <span class="spec-key">ACQUISITION COST:</span>
+                                    <span class="spec-val mono-num" id="sim-unit-cost">₹0</span>
+                                </div>
+                                <div class="spec-row">
+                                    <span class="spec-key">LEGAL MRP CEILING:</span>
+                                    <span class="spec-val mono-num" id="sim-mrp-limit">₹0</span>
+                                </div>
+                                <div class="spec-row">
+                                    <span class="spec-key">COMPETITOR AVG:</span>
+                                    <span class="spec-val mono-num" id="sim-comp-price">₹0</span>
+                                </div>
+                                <div class="spec-row">
+                                    <span class="spec-key">DAYS TO SUCCESSOR:</span>
+                                    <span class="spec-val mono-num" id="sim-days-successor">0 days</span>
+                                </div>
+                                <div class="spec-row">
+                                    <span class="spec-key">CURRENT STOCK:</span>
+                                    <span class="spec-val mono-num" id="sim-inventory">0 units</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Visualization Column -->
+                        <div class="visualizer-column">
+                            <div class="telemetry-tiles-grid">
+                                <div class="telemetry-tile">
+                                    <span class="tile-label">PREDICTED DAILY DEMAND</span>
+                                    <div class="tile-number mono-num" id="sim-result-demand">0.0 <span class="tile-unit">u/d</span></div>
+                                </div>
+                                <div class="telemetry-tile">
+                                    <span class="tile-label">UNIT GROSS MARGIN</span>
+                                    <div class="tile-number mono-num text-accent" id="sim-result-margin">₹0</div>
+                                </div>
+                                <div class="telemetry-tile">
+                                    <span class="tile-label">HORIZON NET PROFIT</span>
+                                    <div class="tile-number mono-num text-success" id="sim-result-profit">₹0</div>
+                                </div>
+                                <div class="telemetry-tile">
+                                    <span class="tile-label">EST. CLEARANCE TIME</span>
+                                    <div class="tile-number mono-num" id="sim-result-clearance">0 <span class="tile-unit">days</span></div>
+                                </div>
+                            </div>
+
+                            <div class="architectural-panel mt-4">
+                                <div class="panel-header">
+                                    <div>
+                                        <h3 class="panel-title">Expected Profit & Demand Response Curve</h3>
+                                        <p class="panel-subtitle">Curve peak balances price elasticity against holding costs and write-down risks</p>
+                                    </div>
+                                    <div class="legend-cluster">
+                                        <span class="legend-swatch bg-cyan"></span> <span class="mono-label">Profit (₹)</span>
+                                        <span class="legend-swatch bg-white ml-3"></span> <span class="mono-label">Demand (u/d)</span>
+                                    </div>
+                                </div>
+                                <div class="chart-canvas-wrapper">
+                                    <canvas id="simulatorCurveChart"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 4. Competitor Intelligence View -->
+                <section id="view-competitors" class="view hidden">
+                    <div class="view-header-strip">
+                        <div>
+                            <h2 class="section-headline">Market Parity & Competitor Radar</h2>
+                            <p class="section-subtext">Cross-channel positioning against Amazon, Flipkart, Croma, and Vijay Sales.</p>
+                        </div>
+                    </div>
+
+                    <div class="architectural-panel">
+                        <div class="table-container-scroll">
+                            <table class="terminal-table">
+                                <thead>
+                                    <tr>
+                                        <th>PRODUCT</th>
+                                        <th>OUR CURRENT</th>
+                                        <th>AI RECOMMENDATION</th>
+                                        <th>MARKET AVERAGE</th>
+                                        <th>MARKET FLOOR</th>
+                                        <th>LEGAL MRP</th>
+                                        <th>POSITIONING STRATEGY</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="competitor-table-body">
+                                    <!-- Dynamic -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 5. Multi-Store Balancing View -->
+                <section id="view-transfers" class="view hidden">
+                    <div class="view-header-strip">
+                        <div>
+                            <h2 class="section-headline">Multi-Store Balancing Engine</h2>
+                            <p class="section-subtext">Profit-maximizing inter-store transfers solved as a transportation linear program (scipy HiGHS).</p>
+                        </div>
+                        <span class="mono-badge badge-accent">Solver: LP Transportation</span>
+                    </div>
+
+                    <div class="architectural-panel mt-4">
+                        <div class="panel-header">
+                            <div>
+                                <h3 class="panel-title">Recommended Transfer Plan</h3>
+                                <p class="panel-subtitle">Only transfers with positive net benefit after ₹250/unit logistics cost are proposed</p>
+                            </div>
+                            <span class="mono-badge text-success" id="transfer-total-benefit">Net Benefit: ₹0</span>
+                        </div>
+                        <div class="table-container-scroll">
+                            <table class="terminal-table">
+                                <thead>
+                                    <tr>
+                                        <th>PRODUCT</th>
+                                        <th>FROM STORE</th>
+                                        <th>TO STORE</th>
+                                        <th>UNITS</th>
+                                        <th>LOGISTICS</th>
+                                        <th>NET BENEFIT</th>
+                                        <th>RATIONALE</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="transfers-body">
+                                    <!-- Dynamic -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div class="architectural-panel mt-4">
+                        <div class="panel-header">
+                            <div>
+                                <h3 class="panel-title">Store-Level Supply Health</h3>
+                                <p class="panel-subtitle">Days-of-supply snapshot per store and SKU (latest inventory state)</p>
+                            </div>
+                        </div>
+                        <div class="table-container-scroll">
+                            <table class="terminal-table">
+                                <thead>
+                                    <tr>
+                                        <th>PRODUCT</th>
+                                        <th>STORE</th>
+                                        <th>CITY</th>
+                                        <th>INVENTORY</th>
+                                        <th>VELOCITY</th>
+                                        <th>DAYS SUPPLY</th>
+                                        <th>STATUS</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="store-health-body">
+                                    <!-- Dynamic -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </main>
+    </div>
+
+    <!-- Reason Explanation Drawer / Dialog (XAI) -->
+    <div id="memo-modal" class="modal-backdrop hidden" onclick="app.closeModalOnBackdrop(event)">
+        <div class="modal-dialog-box">
+            <div class="dialog-header">
+                <div class="dialog-badge">
+                    <i class="fa-solid fa-microchip"></i> EXPLAINABLE AI AUDIT
+                </div>
+                <button class="btn-terminal-icon" onclick="app.closeModal()" aria-label="Close dialog">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <div class="dialog-body" id="modal-content">
+                <!-- Injected dynamically -->
+            </div>
+            <div class="dialog-footer">
+                <button class="btn btn-secondary btn-sm" onclick="app.closeModal()">Dismiss</button>
+                <button class="btn btn-primary btn-sm" onclick="app.simulateFromModal()">
+                    <i class="fa-solid fa-sliders"></i> Test In Simulator
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tech Launch Event Ingestion Dialog -->
+    <div id="launch-modal" class="modal-backdrop hidden" onclick="app.closeLaunchModalOnBackdrop(event)">
+        <div class="modal-dialog-box">
+            <div class="dialog-header">
+                <div class="dialog-badge">
+                    <i class="fa-solid fa-satellite-dish"></i> TECH LAUNCH INGESTION WIRE
+                </div>
+                <button class="btn-terminal-icon" onclick="app.closeLaunchModal()" aria-label="Close dialog">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <div class="dialog-body">
+                <p class="dialog-instructions">
+                    Simulate real-time ingestion of flagship keynote announcements. The AI adjusts the predecessor model's lifecycle window, applies empirical price elasticity models, and calculates optimal markdown timing before market prices collapse.
+                </p>
+                <div class="signal-event-list">
+                    <div class="signal-event-card" onclick="app.triggerTechEvent('iphone18')">
+                        <div class="signal-icon-box bg-apple">
+                            <i class="fa-brands fa-apple"></i>
+                        </div>
+                        <div class="signal-copy">
+                            <h4>Apple Keynote: iPhone 18 Series Announced</h4>
+                            <p>Predecessor: iPhone 17 (256GB) &bull; Horizon: 14 days &bull; Floor pressure: -4%</p>
+                        </div>
+                        <button class="btn btn-primary btn-xs">Apply Signal &rarr;</button>
+                    </div>
+                    <div class="signal-event-card" onclick="app.triggerTechEvent('galaxy_s27')">
+                        <div class="signal-icon-box bg-samsung">
+                            <i class="fa-solid fa-mobile-screen"></i>
+                        </div>
+                        <div class="signal-copy">
+                            <h4>Samsung Galaxy Unpacked: Galaxy S27 Announced</h4>
+                            <p>Predecessor: Galaxy S26 (256GB) &bull; Horizon: 21 days &bull; Floor pressure: -5%</p>
+                        </div>
+                        <button class="btn btn-primary btn-xs">Apply Signal &rarr;</button>
+                    </div>
+                    <div class="signal-event-card" onclick="app.triggerTechEvent('pixel11')">
+                        <div class="signal-icon-box bg-google">
+                            <i class="fa-brands fa-google"></i>
+                        </div>
+                        <div class="signal-copy">
+                            <h4>Google I/O: Pixel 11 Pro Announced</h4>
+                            <p>Predecessor: Pixel 10 Pro (256GB) &bull; Horizon: 18 days &bull; Floor pressure: -3%</p>
+                        </div>
+                        <button class="btn btn-primary btn-xs">Apply Signal &rarr;</button>
+                    </div>
+                </div>
+            </div>
+            <div class="dialog-footer">
+                <button class="btn btn-secondary btn-sm" onclick="app.closeLaunchModal()">Cancel</button>
+                <button class="btn btn-outline btn-sm" onclick="app.resetLifecycleEvents()">
+                    <i class="fa-solid fa-arrow-rotate-left"></i> Revert All To Baseline
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Client Logic -->
+    <script src="./js/app.js" defer></script>
+</body>
+</html>

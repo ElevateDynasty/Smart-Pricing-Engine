@@ -1,7 +1,17 @@
 """
 Constrained Lifecycle Profit Optimizer
-Maximizes total expected profit over the remaining useful selling horizon of inventory,
-accounting for holding costs, financing charges, and post-successor depreciation penalties.
+
+A constrained nonlinear optimization layer built ON TOP of the ML demand
+function. The demand model (LightGBM) provides the demand surface D(P, context);
+this optimizer then solves, over a discrete lattice of feasible prices:
+
+    max_P  GrossMargin(P) - CarryingCosts(P) - DepreciationLoss(P)
+    s.t.   unit_cost <= P <= MRP        (Legal Metrology ceiling)
+
+This is the standard revenue-management architecture ("ML predicts demand,
+constrained optimization prices the inventory") — the same pattern used by
+airline and hotel revenue management systems. It is operations research
+feeding on machine-learned demand, not a second ML model.
 """
 from dataclasses import dataclass
 from typing import List, Dict, Any, Optional, Tuple
@@ -134,6 +144,10 @@ class LifecycleOptimizer:
         profit_curve = []
         metrics_list = []
 
+        # Model-aware variance: residual variance from forecaster RMSE (per-day error)
+        forecaster_rmse = float(getattr(self.forecaster, "metrics", {}).get("rmse", 0.0))
+        residual_var = forecaster_rmse ** 2
+
         # 3. Lifecycle Evaluation per Candidate Price
         for i, price in enumerate(feasible_prices):
             daily_demand = max(0.01, float(predicted_demands[i]))
@@ -146,10 +160,10 @@ class LifecycleOptimizer:
             # Days required to completely clear stock
             clearance_days = current_inventory / daily_demand
 
-            # Clearance probability using normal approximation of demand variance
-            # Demand std dev ~ sqrt(mean) under Poisson
-            total_variance = daily_demand * horizon_days
-            std_dev = max(1.0, np.sqrt(total_variance))
+            # Calibrated clearance probability using model-aware variance:
+            # combines forecasting residual variance (RMSE^2) and Poisson arrival variance
+            total_variance = (horizon_days * residual_var) + (daily_demand * horizon_days)
+            std_dev = max(1.0, np.sqrt(max(0.0, total_variance)))
             z_score = (total_potential_sales - current_inventory) / std_dev
             clearance_prob = float(stats.norm.cdf(z_score))
 
@@ -202,10 +216,12 @@ class LifecycleOptimizer:
         sq_meta = metrics_list[sq_idx]
 
         profit_lift_amount = best_meta["net_profit"] - sq_meta["net_profit"]
-        profit_lift_pct = (
-            (profit_lift_amount / (abs(sq_meta["net_profit"]) + 1e-5)) * 100.0
-            if sq_meta["net_profit"] != 0 else 0.0
-        )
+        if sq_meta["net_profit"] > 1000.0:
+            profit_lift_pct = round((profit_lift_amount / sq_meta["net_profit"]) * 100.0, 2)
+        elif sq_meta["net_profit"] < -1000.0:
+            profit_lift_pct = round((profit_lift_amount / abs(sq_meta["net_profit"])) * 100.0, 2)
+        else:
+            profit_lift_pct = 0.0 if profit_lift_amount == 0 else round(min(999.9, max(-999.9, (profit_lift_amount / (abs(sq_meta["net_profit"]) + 1.0)) * 100.0)), 2)
 
         # 5. Price Action and Business Logic Classification
         price_diff = recommended_price - current_price
@@ -220,10 +236,18 @@ class LifecycleOptimizer:
         else:
             price_action = "Clearance Markdown"
 
-        # Risk level determination
-        if best_meta["clearance_days"] > days_to_successor * 1.2 or best_meta["leftover_inventory"] > current_inventory * 0.25:
+        # Risk level determination incorporates velocity, leftover units, and calibrated clearance probability
+        if (
+            best_meta["clearance_days"] > days_to_successor * 1.2
+            or best_meta["leftover_inventory"] > current_inventory * 0.25
+            or best_meta["clearance_prob"] < 0.35
+        ):
             inventory_risk_level = "High Risk"
-        elif best_meta["clearance_days"] > days_to_successor or best_meta["leftover_inventory"] > 0:
+        elif (
+            best_meta["clearance_days"] > days_to_successor
+            or best_meta["leftover_inventory"] > 0
+            or best_meta["clearance_prob"] < 0.70
+        ):
             inventory_risk_level = "Medium Risk"
         else:
             inventory_risk_level = "Low Risk"

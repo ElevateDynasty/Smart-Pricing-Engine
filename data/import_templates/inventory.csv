@@ -1,0 +1,4 @@
+date,store_id,product_id,opening_inventory,units_sold,stock_in,closing_inventory,inventory_age_days
+2026-01-04,STORE_MUM_01,SKU_IPHONE_17_256,250,17,0,233,420
+2026-01-04,STORE_PUN_05,SKU_IPHONE_17_256,60,4,0,56,420
+2026-01-04,STORE_MUM_01,SKU_REDMI_NOTE_15_PRO,140,11,0,129,380

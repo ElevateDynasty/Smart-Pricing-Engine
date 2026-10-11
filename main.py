@@ -6,6 +6,7 @@ import argparse
 import sys
 from pathlib import Path
 import pandas as pd
+import numpy as np
 
 # Ensure UTF-8 stdout encoding on Windows consoles
 if sys.platform == "win32" and hasattr(sys.stdout, "reconfigure"):
@@ -91,7 +92,15 @@ def run_showcase_demo(forecaster: DemandForecaster):
     print("\n" + "-" * 70)
     print("DEMAND CURVE SIMULATION ACROSS CANDIDATE PRICES:")
     print("-" * 70)
-    test_sample_prices = [79999.0, 78999.0, 77999.0, 77499.0, 76999.0, 75999.0]
+    # Dynamically sample candidate prices across the feasible range including current and recommended prices
+    fp = np.sort(result.feasible_prices)
+    indices = np.linspace(len(fp) - 1, 0, min(6, len(fp)), dtype=int)
+    test_sample_prices = [float(fp[i]) for i in indices]
+    if sc["current_price"] not in test_sample_prices and fp[0] <= sc["current_price"] <= fp[-1]:
+        test_sample_prices.append(float(sc["current_price"]))
+    if result.recommended_price not in test_sample_prices and fp[0] <= result.recommended_price <= fp[-1]:
+        test_sample_prices.append(float(result.recommended_price))
+    test_sample_prices = sorted(list(set(test_sample_prices)), reverse=True)
     for p in test_sample_prices:
         d = forecaster.predict_point(
             selling_price=p,

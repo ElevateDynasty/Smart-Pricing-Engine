@@ -1,0 +1,6 @@
+store_id,store_name,city,state,tier,footfall_index,store_type
+STORE_MUM_01,Phoenix Palladium Flagship,Mumbai,Maharashtra,Tier 1,1.35,Multi-Brand Flagship
+STORE_DEL_02,Select Citywalk Mega Store,Delhi NCR,Delhi,Tier 1,1.25,Multi-Brand Flagship
+STORE_BLR_03,Indiranagar Tech Hub,Bengaluru,Karnataka,Tier 1,1.20,Multi-Brand Outlet
+STORE_HYD_04,Banjara Hills Premium,Hyderabad,Telangana,Tier 1,1.10,Multi-Brand Outlet
+STORE_PUN_05,FC Road Retail Hub,Pune,Maharashtra,Tier 2,0.95,Multi-Brand Outlet

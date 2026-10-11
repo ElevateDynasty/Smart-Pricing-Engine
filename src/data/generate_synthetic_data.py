@@ -331,19 +331,28 @@ class SyntheticDataGenerator:
                     comp_avg = comp_data["competitor_avg_price"]
                     comp_stockouts = comp_data["competitor_stockouts"]
 
-                    # Retailer current pricing behavior in historical data
+                    # Retailer pricing behavior with independent variation to provide real price signal
+                    # Realistic mix of promotional pricing tiers (5-10% discounts), standard pricing, and convenience premiums
+                    price_mult = float(np.random.choice([0.90, 0.95, 1.00, 1.03], p=[0.15, 0.25, 0.40, 0.20]))
+                    if np.random.rand() < 0.08:
+                        # Periodic promotional discount
+                        price_mult *= float(np.random.uniform(0.95, 0.97))
+
                     if pid == SHOWCASE_SCENARIO["product_id"]:
-                        # Held at 79,999 in recent period
-                        selling_price = SHOWCASE_SCENARIO["current_price"]
+                        # Showcase SKU held at status quo ₹79,999 during recent 14-day window;
+                        # earlier period includes historical price variations for elasticity identification
+                        if (self.end_date - dt).days <= 14:
+                            selling_price = SHOWCASE_SCENARIO["current_price"]
+                        else:
+                            selling_price = round(comp_avg * price_mult, -2)
                     elif pid == "SKU_PIXEL_10_PRO" and comp_stockouts >= 2:
                         # Price increased due to competitor stockouts
-                        selling_price = mrp * 0.98
+                        selling_price = round(mrp * 0.98, -2)
                     else:
-                        # Typical store price floating slightly above online comp (convenience premium)
-                        selling_price = round(comp_avg * 1.015, -2)
+                        selling_price = round(comp_avg * price_mult, -2)
 
-                    # Ensure bounded within [unit_cost, mrp]
-                    selling_price = max(unit_cost * 1.02, min(selling_price, mrp))
+                    # Ensure bounded within [unit_cost * 1.02, mrp]
+                    selling_price = max(round(unit_cost * 1.02, -2), min(selling_price, mrp))
 
                     # Demand calculation with price elasticity
                     # Spec Section 9 & 10: D = f(P, C, I, S, L, T, M)
@@ -353,8 +362,8 @@ class SyntheticDataGenerator:
                     elasticity_factor = (price_ratio) ** (-base_elasticity)
                     stockout_boost = 1.25 if comp_stockouts >= 2 else 1.0
 
-                    # Lifecycle degradation factor for aging models
-                    days_remaining = product["days_to_successor"] - (self.end_date - dt).days
+                    # Lifecycle degradation factor for aging models approaching successor launch
+                    days_remaining = product["days_to_successor"] + (self.end_date - dt).days
                     if days_remaining <= 30 and pid in ["SKU_IPHONE_17_256", "SKU_IPHONE_16_128"]:
                         lifecycle_drag = 0.85
                     else:
@@ -393,7 +402,7 @@ class SyntheticDataGenerator:
                         "units_sold": units_sold,
                         "stock_in": stock_in,
                         "closing_inventory": closing_stock,
-                        "inventory_age_days": max(10, 240 - days_remaining)
+                        "inventory_age_days": max(10, min(180, (dt - self.start_date).days + 15))
                     })
 
                     # Log sales transactions

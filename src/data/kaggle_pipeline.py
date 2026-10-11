@@ -95,13 +95,22 @@ class KaggleRetailPipeline:
         return df
 
     def train_demand_forecaster(self, df: pd.DataFrame) -> Dict[str, Any]:
-        """Train LightGBM regressor to predict sales quantity (qty)."""
-        X = df[self.feature_names].copy()
-        y = df["qty"].values
+        """
+        Train LightGBM regressor to predict sales quantity (qty).
 
-        X_train, X_val, y_train, y_val = train_test_split(
-            X, y, test_size=0.2, random_state=42
-        )
+        Uses a TIME-ORDERED 80/20 split on (year, month) — training on earlier
+        months, validating on strictly later months — so real-data metrics are
+        leakage-free and honest.
+        """
+        if {"year", "month"}.issubset(df.columns):
+            df = df.sort_values(["year", "month"]).reset_index(drop=True)
+
+        X = df[self.feature_names].copy()
+        y = df["qty"]
+
+        split_idx = int(len(X) * 0.8)
+        X_train, X_val = X.iloc[:split_idx], X.iloc[split_idx:]
+        y_train, y_val = y.iloc[:split_idx], y.iloc[split_idx:]
 
         model = lgb.LGBMRegressor(
             n_estimators=160,
@@ -124,7 +133,9 @@ class KaggleRetailPipeline:
             "rmse": round(rmse, 3),
             "r2": round(r2, 3),
             "train_samples": len(X_train),
-            "val_samples": len(X_val)
+            "val_samples": len(X_val),
+            "split_strategy": "time-ordered 80/20 on (year, month) — leakage-free",
+            "leakage_free": True
         }
 
         # Feature importances
@@ -232,6 +243,166 @@ class KaggleRetailPipeline:
             "training_results": train_res,
             "elasticities": elasticities
         }
+
+class KaggleDemandAdapter:
+    """
+    Adapts the real-data Kaggle LightGBM to the DemandForecaster interface
+    consumed by LifecycleOptimizer, so the constrained optimizer can run
+    end-to-end on products from the real retail dataset.
+
+    IMPORTANT: set 'current_product_id' before calling predict_point /
+    predict_demand_curve - per-product covariates (product_score, customers,
+    freight_price, calendar context) are selected for that product.
+
+    Documented imputations (real dataset has no MRP/inventory/lifecycle):
+      - MRP, unit cost, inventory and successor horizon are supplied by the
+        caller (analytics layer) as economic assumptions, not by the model.
+    """
+
+    def __init__(
+        self,
+        csv_path: Optional[Path] = None,
+        model_path: Path = KAGGLE_MODEL_FILE
+    ):
+        self.csv_path = csv_path or KAGGLE_RAW_CSV
+        if not model_path.exists():
+            raise FileNotFoundError(
+                "Kaggle model not found at " + str(model_path) + ". Run 'python main.py --kaggle' first."
+            )
+        bundle = joblib.load(model_path)
+        self.model = bundle["model"]
+        self.feature_names = bundle["feature_names"]
+        self.metrics = bundle.get("metrics", {})
+        self.current_product_id: Optional[str] = None
+        self._build_product_stats()
+
+    def _build_product_stats(self):
+        df = pd.read_csv(self.csv_path)
+        stats = {}
+        for pid, sub in df.groupby("product_id"):
+            stats[pid] = {
+                "product_score": float(sub["product_score"].median()),
+                "customers": float(sub["customers"].median()),
+                "freight_price": float(sub["freight_price"].median()),
+                "weekday": int(sub["weekday"].mode().iloc[0]) if len(sub) else 2,
+                "weekend": int(sub["weekend"].mode().iloc[0]) if len(sub) else 0,
+                "holiday": int(sub["holiday"].mode().iloc[0]) if len(sub) else 0,
+                "month": int(sub["month"].max()),
+                "last_unit_price": float(sub["unit_price"].iloc[-1]),
+                "max_unit_price": float(sub["unit_price"].max()),
+                "median_qty": float(sub["qty"].median()),
+                "category": str(sub["product_category_name"].iloc[0])
+            }
+        self.product_stats = stats
+
+        # Global defaults for unseen product ids
+        self.default_stats = {
+            "product_score": float(df["product_score"].median()),
+            "customers": float(df["customers"].median()),
+            "freight_price": float(df["freight_price"].median()),
+            "weekday": 2, "weekend": 0, "holiday": 0,
+            "month": int(df["month"].max()),
+            "last_unit_price": float(df["unit_price"].median()),
+            "max_unit_price": float(df["unit_price"].median()),
+            "median_qty": float(df["qty"].median()),
+            "category": "unknown"
+        }
+
+    def _row(self, selling_price: float, competitor_avg_price: float,
+             competitor_min_price: float) -> pd.DataFrame:
+        stats = self.product_stats.get(self.current_product_id, self.default_stats)
+        lag = stats["last_unit_price"]
+        row = pd.DataFrame([{
+            "unit_price": selling_price,
+            "competitor_avg_price": competitor_avg_price,
+            "competitor_min_price": competitor_min_price,
+            "price_ratio_comp": selling_price / (competitor_avg_price + 1e-5),
+            "price_delta_comp": selling_price - competitor_avg_price,
+            "price_delta_comp_min": selling_price - competitor_min_price,
+            "lag_price": lag,
+            "freight_price": stats["freight_price"],
+            "product_score": stats["product_score"],
+            "customers": stats["customers"],
+            "weekday": stats["weekday"],
+            "weekend": stats["weekend"],
+            "holiday": stats["holiday"],
+            "month": stats["month"]
+        }])[self.feature_names]
+        return row
+
+    def predict_point(
+        self,
+        selling_price: float,
+        mrp: float,
+        competitor_avg_price: float,
+        competitor_min_price: float,
+        unit_cost: float,
+        opening_inventory: int,
+        inventory_age_days: int = 45,
+        days_to_successor: int = 60,
+        competitor_stockout_flag: int = 0,
+        footfall_index: float = 1.2,
+        is_weekend: int = 0,
+        is_festive_season: int = 0,
+        day_of_week: int = 2,
+        month: int = 9
+    ) -> float:
+        """Predict expected daily qty for a product from the real dataset.
+
+        mrp / unit_cost / inventory / days_to_successor are accepted for
+        interface compatibility but do not exist in the real dataset's feature
+        schema; the demand model itself is unaffected by them.
+        """
+        row = self._row(selling_price, competitor_avg_price, competitor_min_price)
+        pred = float(self.model.predict(row)[0])
+        return max(0.0, pred)
+
+    def predict_demand_curve(
+        self,
+        candidate_prices: np.ndarray,
+        mrp: float,
+        competitor_avg_price: float,
+        competitor_min_price: float,
+        unit_cost: float,
+        opening_inventory: int,
+        days_to_successor: int = 60,
+        competitor_stockout_flag: int = 0,
+        footfall_index: float = 1.2
+    ) -> np.ndarray:
+        """Evaluate demand across an array of candidate prices (real-data model)."""
+        rows = []
+        for p in candidate_prices:
+            rows.append(self._row(float(p), competitor_avg_price, competitor_min_price))
+        features_df = pd.concat(rows, ignore_index=True)[self.feature_names]
+        preds = self.model.predict(features_df)
+        return np.maximum(0.0, preds)
+
+    def explain_point(
+        self,
+        selling_price: float,
+        competitor_avg_price: float,
+        competitor_min_price: float
+    ) -> Dict[str, Any]:
+        """Native TreeSHAP explanation for the real-data model."""
+        row = self._row(selling_price, competitor_avg_price, competitor_min_price)
+        contribs = self.model.predict(row, pred_contrib=True)[0]
+        bias = float(contribs[-1])
+        factors = []
+        for name, val in zip(self.feature_names, contribs[:-1]):
+            factors.append({
+                "feature": name,
+                "contribution": round(float(val), 4),
+                "direction": "positive" if val > 0 else "negative",
+                "abs_contribution": round(abs(float(val)), 4)
+            })
+        factors.sort(key=lambda f: f["abs_contribution"], reverse=True)
+        return {
+            "method": "TreeSHAP (LightGBM native pred_contrib)",
+            "base_value": round(bias, 4),
+            "prediction": round(max(0.0, bias + sum(contribs[:-1])), 4),
+            "top_factors": factors[:6]
+        }
+
 
 if __name__ == "__main__":
     pipeline = KaggleRetailPipeline()

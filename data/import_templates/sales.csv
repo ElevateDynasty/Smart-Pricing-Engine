@@ -1,0 +1,4 @@
+transaction_id,date,store_id,product_id,selling_price,units_sold,total_revenue,discount_amount,customer_segment,payment_method
+TXN_100001,2026-01-04,STORE_MUM_01,SKU_IPHONE_17_256,79999,17,1359983,85000,Walk-in,UPI / Credit Card
+TXN_100002,2026-01-04,STORE_MUM_01,SKU_IPHONE_17_256,78999,1,78999,0,Online Order,UPI / Credit Card
+TXN_100003,2026-01-04,STORE_PUN_05,SKU_IPHONE_17_256,79999,4,319996,16000,Walk-in,Cash

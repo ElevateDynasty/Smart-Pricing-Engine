@@ -1,0 +1,6 @@
+date,product_id,competitor,competitor_price,availability,promotion_tag
+2026-01-04,SKU_IPHONE_17_256,Amazon India,77100,In Stock,Regular
+2026-01-04,SKU_IPHONE_17_256,Flipkart,76700,In Stock,Regular
+2026-01-04,SKU_IPHONE_17_256,Croma,77999,In Stock,Regular
+2026-01-05,SKU_IPHONE_17_256,Amazon India,76990,In Stock,Deal of the Day
+2026-01-05,SKU_IPHONE_17_256,Flipkart,76690,In Stock,Regular

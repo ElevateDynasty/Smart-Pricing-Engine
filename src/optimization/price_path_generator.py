@@ -74,6 +74,23 @@ class PricePathGenerator:
             # Adapt current price towards recommended price for subsequent phases
             current_price = res.recommended_price
             if remaining_inv <= 0:
+                for next_phase in range(phase + 1, num_phases):
+                    n_start = total_days - (next_phase * days_per_phase)
+                    n_end = max(0, n_start - days_per_phase)
+                    n_label = f"Days {n_start}–{n_end+1}" if n_end > 0 else f"Days {n_start}–0 (Clearance)"
+                    path.append({
+                        "phase_index": next_phase + 1,
+                        "phase_label": n_label,
+                        "days_remaining_start": n_start,
+                        "days_remaining_end": n_end,
+                        "starting_inventory": 0,
+                        "recommended_price": current_price,
+                        "expected_daily_sales": 0.0,
+                        "projected_units_sold": 0,
+                        "ending_inventory": 0,
+                        "price_action": "Stock Cleared",
+                        "cumulative_clearance_pct": 100.0
+                    })
                 break
 
         return path
