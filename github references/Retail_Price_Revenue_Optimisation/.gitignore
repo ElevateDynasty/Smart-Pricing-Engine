@@ -1,0 +1,25 @@
+# Data folders
+/data/
+/visuals/
+*.xlsx
+*.parquet
+
+# Notebooks
+.ipynb_checkpoints/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.python-version
+
+# OS
+.DS_Store
+
+# Local scratch notebooks
+/local_files/
+checkingdata.ipynb
+.env
+
+
+

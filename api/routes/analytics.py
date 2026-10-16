@@ -15,6 +15,11 @@ from src.data.data_pipeline import DataPipeline
 from src.data.kaggle_pipeline import KaggleDemandAdapter, KAGGLE_RAW_CSV
 from src.optimization.competitor_game_theory import CompetitorGameTheorySimulator
 from src.evaluation.model_ablation import run_full_ablation
+from src.optimization.retail_price_lp_optimizer import (
+    RetailPriceRevenueSimulator,
+    RetailPortfolioLPOptimizer,
+    SingleProductSimulationResult
+)
 
 router = APIRouter()
 
@@ -1700,6 +1705,190 @@ def _seed_initial_retailer_inventory():
             }
         except Exception as e:
             print(f"Failed to seed sample retailer inventory: {e}")
+
+
+# ---------------------------------------------------------------------------
+# Retail Price Simulation & Portfolio Linear Programming Endpoints
+# (Inspired by & integrating ozzienobayrak/Retail_Price_Revenue_Optimisation)
+# ---------------------------------------------------------------------------
+
+class RetailPriceSimulationRequest(BaseModel):
+    product_id: str = Field(default="SKU_DEMO_001", description="Unique identifier for the SKU")
+    product_name: str = Field(default="Demo Smartphone (256GB)", description="Human-readable product name")
+    current_price: float = Field(default=69999.0, gt=0, description="Current selling shelf price")
+    unit_cost: float = Field(default=55000.0, gt=0, description="Wholesale procurement cost")
+    mrp: float = Field(default=79999.0, gt=0, description="Maximum Retail Price statutory cap")
+    current_inventory: int = Field(default=80, ge=1, description="Available stock units")
+    competitor_avg_price: float = Field(default=68500.0, gt=0, description="Benchmark competitor price")
+    competitor_min_price: float = Field(default=67000.0, gt=0, description="Lowest competitor price")
+    scenario: Literal["Low", "Medium", "High"] = Field(default="Medium", description="Inventory scenario (80%, 100%, 120%)")
+    grid_low: float = Field(default=0.80, gt=0, description="Lower price multiplier for simulation grid")
+    grid_high: float = Field(default=1.20, gt=0, description="Upper price multiplier for simulation grid")
+    n_prices: int = Field(default=9, ge=3, le=25, description="Number of candidate price points")
+    days_to_successor: int = Field(default=60, ge=1, description="Days until successor model launch")
+
+
+class RetailPortfolioLPRequest(BaseModel):
+    items: Optional[List[RetailPriceSimulationRequest]] = Field(default=None, description="Catalog of items to price jointly")
+    objective: Literal["revenue", "profit"] = Field(default="revenue", description="Linear programming objective")
+    total_inventory_capacity: Optional[float] = Field(default=None, description="Maximum total units across portfolio")
+    min_portfolio_margin_pct: Optional[float] = Field(default=0.15, description="Minimum portfolio gross margin threshold")
+    max_portfolio_price_drift_pct: Optional[float] = Field(default=0.08, description="Maximum average price drift across portfolio")
+    min_total_units: Optional[float] = Field(default=None, description="Minimum total unit sales volume floor")
+    use_integer_milp: bool = Field(default=True, description="Whether to solve exact binary MILP or LP relaxation")
+
+
+@router.post("/retail-lp/simulate")
+def simulate_retail_price(req: RetailPriceSimulationRequest):
+    """
+    Simulates retail price elasticity and revenue-maximizing curves across
+    candidate prices under Low/Medium/High inventory scenarios.
+    """
+    forecaster, _, _ = get_models()
+    sim = RetailPriceRevenueSimulator(forecaster=forecaster)
+
+    res = sim.simulate_sku_prices(
+        product_id=req.product_id,
+        product_name=req.product_name,
+        current_price=req.current_price,
+        unit_cost=req.unit_cost,
+        mrp=req.mrp,
+        current_inventory=req.current_inventory,
+        competitor_avg_price=req.competitor_avg_price,
+        competitor_min_price=req.competitor_min_price,
+        scenario=req.scenario,
+        grid_low=req.grid_low,
+        grid_high=req.grid_high,
+        n_prices=req.n_prices,
+        days_to_successor=req.days_to_successor
+    )
+    return {
+        "status": "success",
+        "reference_source": "https://github.com/ozzienobayrak/Retail_Price_Revenue_Optimisation",
+        "data": res.to_dict()
+    }
+
+
+@router.post("/retail-lp/optimize-portfolio")
+def optimize_retail_portfolio_lp(req: RetailPortfolioLPRequest):
+    """
+    Solves the portfolio-wide pricing Linear Program (MILP / LP) over candidate price options
+    subject to shared inventory capacity, minimum portfolio margin, and max price drift.
+    """
+    forecaster, _, _ = get_models()
+    simulator = RetailPriceRevenueSimulator(forecaster=forecaster)
+    lp_optimizer = RetailPortfolioLPOptimizer(simulator=simulator)
+
+    # Use provided items or build from current saved retailer inventory
+    items_to_sim = req.items
+    if not items_to_sim:
+        if _retailer_saved_inventory:
+            items_to_sim = [
+                RetailPriceSimulationRequest(
+                    product_id=inv.get("product_id", f"SKU_{i}"),
+                    product_name=inv.get("product_name", f"Item {i}"),
+                    current_price=float(inv.get("current_price", 60000.0)),
+                    unit_cost=float(inv.get("unit_cost", 48000.0)),
+                    mrp=float(inv.get("mrp", 70000.0)),
+                    current_inventory=int(inv.get("current_inventory", 50)),
+                    competitor_avg_price=float(inv.get("competitor_avg_price", 59000.0)),
+                    competitor_min_price=float(inv.get("competitor_min_price", 57000.0)),
+                    days_to_successor=int(inv.get("days_to_successor", 45))
+                )
+                for i, inv in enumerate(_retailer_saved_inventory[:8])
+            ]
+        else:
+            # Default fallback portfolio of 3 flagship electronics
+            items_to_sim = [
+                RetailPriceSimulationRequest(
+                    product_id="SKU_IPHONE_16",
+                    product_name="iPhone 16 (128GB)",
+                    current_price=69999.0,
+                    unit_cost=58000.0,
+                    mrp=79900.0,
+                    current_inventory=70,
+                    competitor_avg_price=66490.0,
+                    competitor_min_price=64999.0,
+                    days_to_successor=25
+                ),
+                RetailPriceSimulationRequest(
+                    product_id="SKU_GALAXY_S25",
+                    product_name="Samsung Galaxy S25 (256GB)",
+                    current_price=79999.0,
+                    unit_cost=64000.0,
+                    mrp=89999.0,
+                    current_inventory=85,
+                    competitor_avg_price=76990.0,
+                    competitor_min_price=74999.0,
+                    days_to_successor=40
+                ),
+                RetailPriceSimulationRequest(
+                    product_id="SKU_ONEPLUS_13",
+                    product_name="OnePlus 13 (256GB)",
+                    current_price=64999.0,
+                    unit_cost=52000.0,
+                    mrp=69999.0,
+                    current_inventory=90,
+                    competitor_avg_price=62990.0,
+                    competitor_min_price=61499.0,
+                    days_to_successor=60
+                )
+            ]
+
+        if not items_to_sim:
+            raise HTTPException(status_code=400, detail="No items provided and retailer inventory is empty.")
+
+    # 1. Run simulation grid for each item
+    sim_results: List[SingleProductSimulationResult] = []
+    for it in items_to_sim:
+        s_res = simulator.simulate_sku_prices(
+            product_id=it.product_id,
+            product_name=it.product_name,
+            current_price=it.current_price,
+            unit_cost=it.unit_cost,
+            mrp=it.mrp,
+            current_inventory=it.current_inventory,
+            competitor_avg_price=it.competitor_avg_price,
+            competitor_min_price=it.competitor_min_price,
+            scenario=it.scenario,
+            grid_low=it.grid_low,
+            grid_high=it.grid_high,
+            n_prices=it.n_prices,
+            days_to_successor=it.days_to_successor
+        )
+        sim_results.append(s_res)
+
+    # 2. Solve Portfolio LP
+    lp_res = lp_optimizer.optimize_portfolio(
+        item_simulations=sim_results,
+        objective=req.objective,
+        total_inventory_capacity=req.total_inventory_capacity,
+        min_portfolio_margin_pct=req.min_portfolio_margin_pct,
+        max_portfolio_price_drift_pct=req.max_portfolio_price_drift_pct,
+        min_total_units=req.min_total_units,
+        use_integer_milp=req.use_integer_milp
+    )
+
+    return {
+        "status": "success",
+        "method": "Mixed-Integer Linear Programming (HiGHS MILP / LP)",
+        "reference_source": "https://github.com/ozzienobayrak/Retail_Price_Revenue_Optimisation",
+        "data": lp_res.to_dict()
+    }
+
+
+@router.get("/retail-lp/demo-portfolio")
+def get_retail_portfolio_lp_demo():
+    """
+    Out-of-the-box demonstration running full simulation and Linear Programming
+    portfolio optimization across flagship retail SKUs.
+    """
+    req = RetailPortfolioLPRequest(
+        objective="revenue",
+        min_portfolio_margin_pct=0.18,
+        max_portfolio_price_drift_pct=0.06
+    )
+    return optimize_retail_portfolio_lp(req)
 
 
 

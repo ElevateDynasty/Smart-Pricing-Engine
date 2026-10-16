@@ -60,6 +60,7 @@ models/
 *.pickle
 *.h5
 *.onnx
+!github references/**
 
 # ---- Reports & logs ----
 reports/figures/*.png

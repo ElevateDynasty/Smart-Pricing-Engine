@@ -25,7 +25,9 @@
 | **Google Colab Training Pipeline** | 🟢 Production Ready | 2026-10-15 | Cloud training script (`scripts/train_colab.py`) & guide (`docs/google_colab_training_guide.md`) |
 | **Streamlit Interactive UI Dashboard** | 🟢 Production Ready | 2026-10-15 | 6 interactive web modules operational on port 8501 |
 | **FastAPI REST Delivery & Web UI** | 🟢 Production Ready | 2026-10-16 | Full REST API (`/api/*`), dark/light themes, live Chart.js response curves, dynamic elasticity telemetry |
-| **Pytest Automated Test Suite** | 🟢 Passing (53/53) | 2026-10-16 | 100% test pass rate across data pipelines, models, optimizer, game theory, retailer API, and end-to-end dynamic elasticity |
+| **Retail Price Simulation & Portfolio LP Optimizer** | 🟢 Production Ready | 2026-10-16 | Integrates `Retail_Price_Revenue_Optimisation` simulation grid + HiGHS Mixed-Integer Linear Programming |
+| **GitHub Reference Projects Archive** | 🟢 Production Ready | 2026-10-16 | `github references/Retail_Price_Revenue_Optimisation/` mirrored & integrated |
+| **Pytest Automated Test Suite** | 🟢 Passing (64/64) | 2026-10-16 | 100% test pass rate across data pipelines, models, optimizer, game theory, retailer API, dynamic elasticity, and portfolio LP |
 | **Academic LaTeX Report & Deck** | 🟢 Compiled (40p PDF) | 2026-10-15 | Publication-grade report (`report/main.pdf`) & Gemini slides prompt |
 
 ---
@@ -98,6 +100,7 @@ $$\ln(\text{Units} + 1) = \alpha - \beta \ln\left(\frac{P}{P_{\text{comp}}}\righ
 
 ### C. Constrained Optimization & Game Theory
 - [x] **Lifecycle Optimizer** ([`src/optimization/lifecycle_optimizer.py`](file:///c:/Users/gaura/OneDrive/Desktop/Technical%20Seminar%20project/AI%20PRice%20recomm/src/optimization/lifecycle_optimizer.py)): Total lifecycle net profit objective solver accounting for carrying cost, finance rate, and post-successor depreciation penalties.
+- [x] **Retail Price Simulator & Portfolio Linear Program (LP/MILP)** ([`src/optimization/retail_price_lp_optimizer.py`](file:///c:/Users/gaura/OneDrive/Desktop/Technical%20Seminar%20project/AI%20PRice%20recomm/src/optimization/retail_price_lp_optimizer.py)): Multi-scenario inventory capping (Low 80%, Medium 100%, High 120%), 5% finite difference point elasticity, and portfolio-wide HiGHS Mixed-Integer Linear Program subject to total warehouse stock budgets, margin floors, and price drift ceilings (inspired by upstream [Retail_Price_Revenue_Optimisation](file:///c:/Users/gaura/OneDrive/Desktop/Technical%20Seminar%20project/AI%20PRice%20recomm/github%20references/Retail_Price_Revenue_Optimisation/)).
 - [x] **Legal Metrology Rule 18(2) Constraint**: Strict mathematical upper bound $\text{Selling Price} \le \text{MRP}$ enforced at optimization boundary.
 - [x] **Multi-Store Balancer** ([`src/optimization/multi_store_balancer.py`](file:///c:/Users/gaura/OneDrive/Desktop/Technical%20Seminar%20project/AI%20PRice%20recomm/src/optimization/multi_store_balancer.py)): Generates inter-store branch inventory transfers whenever preserved margin exceeds the physical logistics transfer cost.
 - [x] **Competitor Game Theory Simulator** ([`src/optimization/competitor_game_theory.py`](file:///c:/Users/gaura/OneDrive/Desktop/Technical%20Seminar%20project/AI%20PRice%20recomm/src/optimization/competitor_game_theory.py)): Asymmetric Bertrand duopoly multi-round reaction dynamics with contraction mapping proof ensuring stable Nash equilibrium.

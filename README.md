@@ -250,6 +250,9 @@ Technical Seminar project/
     ├── AI_implementation.md          # Living technical implementation & ML status tracker
     ├── AI_Retail_Pricing_Engine_Project_Spec.md  # Formal engineering and product requirements
     │
+    ├── github references/            # Upstream open-source GitHub references archive
+    │   └── Retail_Price_Revenue_Optimisation/ # LightGBM retail price simulation benchmark
+    │
     ├── src/                          # Core Python Engine Architecture
     │   ├── config.py                 # Global financial parameters, holding rates, and paths
     │   │
@@ -266,6 +269,7 @@ Technical Seminar project/
     │   │
     │   ├── optimization/             # Operations Research & Constrained Solvers
     │   │   ├── lifecycle_optimizer.py# Constrained Lifecycle Profit discrete lattice solver
+    │   │   ├── retail_price_lp_optimizer.py # Retail Price Simulator & Portfolio Mixed-Integer LP (MILP / HiGHS)
     │   │   ├── multi_store_balancer.py # Transportation LP solver (scipy / HiGHS)
     │   │   ├── competitor_game_theory.py # Asymmetric Bertrand duopoly game simulator
     │   │   └── price_path_generator.py # Multi-week stepped price glide-path scheduler
@@ -472,9 +476,9 @@ python scripts/monitor_tech_launches.py
 
 ---
 
-## 🧪 Automated Testing Suite (53/53 Passing)
+## 🧪 Automated Testing Suite (64/64 Passing)
 
-The repository includes 8 comprehensive unit and integration test suites covering the entire mathematical, machine learning, and operational pipeline. All **53 tests pass with 100% verification**:
+The repository includes 9 comprehensive unit and integration test suites covering the entire mathematical, machine learning, and operational pipeline. All **64 tests pass with 100% verification**:
 
 ```powershell
 pytest tests/ -v
@@ -486,13 +490,14 @@ pytest tests/ -v
 | :--- | :---: | :--- |
 | [`tests/test_models.py`](file:///c:/Users/gaura/OneDrive/Desktop/Technical%20Seminar%20project/AI%20PRice%20recomm/tests/test_models.py) | **7** | Monotone split constraints ($\frac{\partial \hat{D}}{\partial P} \le 0$), conformal bounds, log-log OLS, 2SLS IV estimation. |
 | [`tests/test_optimizer.py`](file:///c:/Users/gaura/OneDrive/Desktop/Technical%20Seminar%20project/AI%20PRice%20recomm/tests/test_optimizer.py) | **10** | Discrete lattice grid search, MRP legal ceiling adherence ($P \le \text{MRP}$), holding costs, depreciation write-downs. |
+| [`tests/test_retail_price_lp.py`](file:///c:/Users/gaura/OneDrive/Desktop/Technical%20Seminar%20project/AI%20PRice%20recomm/tests/test_retail_price_lp.py) | **11** | Retail price simulation grid, inventory capping (80/100/120%), 5% finite difference elasticity, and HiGHS portfolio MILP/LP. |
 | [`tests/test_data_pipeline.py`](file:///c:/Users/gaura/OneDrive/Desktop/Technical%20Seminar%20project/AI%20PRice%20recomm/tests/test_data_pipeline.py) | **6** | Synthetic Indian market synthesis, festive Diwali multipliers, feature ratio engineering, outlier sanitization. |
 | [`tests/test_explainability.py`](file:///c:/Users/gaura/OneDrive/Desktop/Technical%20Seminar%20project/AI%20PRice%20recomm/tests/test_explainability.py) | **4** | Plain-English `ReasonGenerator` retail briefings, unit-economics tradeoff breakdowns, headline generation. |
 | [`tests/test_api_endpoints.py`](file:///c:/Users/gaura/OneDrive/Desktop/Technical%20Seminar%20project/AI%20PRice%20recomm/tests/test_api_endpoints.py) | **14** | REST endpoint integrity, `/api/simulate` schemas, event timeline overrides, non-static positive point elasticity verification across all SKUs. |
 | [`tests/test_kaggle_pipeline.py`](file:///c:/Users/gaura/OneDrive/Desktop/Technical%20Seminar%20project/AI%20PRice%20recomm/tests/test_kaggle_pipeline.py) | **4** | Ingestion of `retail_price.csv`, categorical encoding, leakage-free train/validation splits, LightGBM training ($R^2 = 0.943$). |
 | [`tests/test_ablation.py`](file:///c:/Users/gaura/OneDrive/Desktop/Technical%20Seminar%20project/AI%20PRice%20recomm/tests/test_ablation.py) | **4** | Empirical ablation sweeps across Monotone LightGBM, Unconstrained LightGBM, Random Forest, and Linear OLS. |
 | [`tests/test_game_theory.py`](file:///c:/Users/gaura/OneDrive/Desktop/Technical%20Seminar%20project/AI%20PRice%20recomm/tests/test_game_theory.py) | **4** | Asymmetric Bertrand duopoly game iterations, offline convenience premium stability, Nash equilibrium convergence. |
-| **Total Test Count** | **53** | **100% Passing (0 failures, 0 skipped, 0 regressions)** |
+| **Total Test Count** | **64** | **100% Passing (0 failures, 0 skipped, 0 regressions)** |
 
 ---
 

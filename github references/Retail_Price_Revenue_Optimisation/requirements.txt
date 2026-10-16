@@ -1,0 +1,13 @@
+streamlit==1.31.0
+pandas==2.0.2
+numpy==1.25.0
+scikit-learn==1.2.2
+lightgbm==4.5.0
+statsmodels==0.14.0
+altair==5.0.1
+matplotlib==3.7.1
+pyarrow
+python-dotenv
+qrcode[pil]
+rich<14
+
