@@ -48,6 +48,17 @@ selected_sku_name = st.selectbox(
 
 r = sku_options[selected_sku_name]
 el_info = elasticity_est.get_elasticity(r.product_id)
+el_val = el_info.get("elasticity") if isinstance(el_info, dict) else None
+el_regime = el_info.get("regime", "Unknown") if isinstance(el_info, dict) else "Unknown"
+
+if el_val is None:
+    from src.models.elasticity_estimator import ElasticityEstimator
+    el_model = ElasticityEstimator.estimate_from_model(
+        optimizer.forecaster, r.current_price, r.competitor_avg_price, r.competitor_min_price,
+        r.mrp, r.unit_cost, r.current_inventory, r.days_to_successor
+    )
+    el_val = el_model.get("elasticity")
+    el_regime = el_model.get("regime", "Dynamic")
 
 # Prominent AI Recommendation Hero Box
 action_class = "badge-hold"
@@ -65,7 +76,7 @@ st.markdown(
             <span class="badge-action {action_class}">{r.price_action}</span>
             <span style="color: #94a3b8; font-size: 0.9rem;">Model Version: LightGBM v1.0 (Constrained)</span>
         </div>
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1.5rem;">
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.25rem;">
             <div>
                 <div style="color: #94a3b8; font-size: 0.85rem; text-transform: uppercase;">Current Selling Price</div>
                 <div style="font-size: 1.8rem; font-weight: 800; color: #f1f5f9;">{CURRENCY_SYMBOL}{int(r.current_price):,}</div>
@@ -77,6 +88,11 @@ st.markdown(
                 <div style="color: {'#10b981' if r.price_change >= 0 else '#fbbf24'}; font-size: 0.85rem; font-weight: 600;">
                     Change: {CURRENCY_SYMBOL}{int(r.price_change):,} ({r.price_change_pct}%)
                 </div>
+            </div>
+            <div>
+                <div style="color: #94a3b8; font-size: 0.85rem; text-transform: uppercase;">Price Elasticity (β)</div>
+                <div style="font-size: 1.8rem; font-weight: 800; color: #a78bfa;">{f'{el_val:.2f}' if el_val is not None else '--'}</div>
+                <div style="color: #c4b5fd; font-size: 0.85rem; font-weight: 600;">Regime: {el_regime}</div>
             </div>
             <div>
                 <div style="color: #94a3b8; font-size: 0.85rem; text-transform: uppercase;">Expected Sales Velocity</div>

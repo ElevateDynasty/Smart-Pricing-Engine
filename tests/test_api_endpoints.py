@@ -299,7 +299,205 @@ def test_all_endpoints_respond():
         ("get", "/api/active-events"),
         ("get", "/api/transfers"),
         ("get", "/api/optimizations/refresh"),
+        ("get", "/api/game-theory/simulate"),
+        ("get", "/api/models/ablation"),
         ("post", "/api/reset-events"),
     ]:
         resp = getattr(client, method)(path)
         assert resp.status_code == 200, f"{method.upper()} {path} -> {resp.status_code}"
+
+
+def test_game_theory_endpoint():
+    resp = client.get("/api/game-theory/simulate?initial_store_price=79999&initial_comp_price=77999&unit_cost=68000&mrp=89900")
+    assert resp.status_code == 200
+    data = resp.json()["data"]
+    assert data["is_converged"] is True
+    assert data["stability_score"] >= 70.0
+    assert "nash_store_price" in data
+
+
+def test_models_ablation_endpoint():
+    resp = client.get("/api/models/ablation")
+    assert resp.status_code == 200
+    data = resp.json()["data"]
+    assert len(data) == 4
+    architectures = [r["Model Architecture"] for r in data]
+    assert any("Monotone" in a for a in architectures)
+
+
+def test_retailer_inventory_optimization_endpoint():
+    payload = {
+        "product_name": "Apple iPhone 17 (256GB Midnight)",
+        "brand": "Apple",
+        "category": "Flagship Smartphone",
+        "current_inventory": 800,
+        "current_price": 79999.0,
+        "unit_cost": 68000.0,
+        "mrp": 89900.0,
+        "competitor_avg_price": 77999.0,
+        "competitor_min_price": 76999.0,
+        "days_to_successor": 60,
+        "offline_premium": 1000.0,
+        "store_channel": "Metro Flagship Store"
+    }
+    resp = client.post("/api/retailer/optimize-inventory", json=payload)
+    assert resp.status_code == 200, f"Error: {resp.text}"
+    body = resp.json()
+    assert body["status"] == "success"
+    data = body["data"]
+
+    # Verify real ML optimization outputs
+    assert data["recommended_price"] <= 89900.0, "MRP ceiling must be respected"
+    assert data["recommended_price"] >= 68000.0, "Must not sell below cost"
+    assert data["profit_lift_amount"] >= 0, "AI optimization should achieve >= status quo"
+    assert "image_url" in data and data["image_url"] == "img/iphone_17.jpg"
+    assert len(data["competitor_benchmarks"]) == 6
+    assert data["game_theory"]["is_converged"] is True
+    assert len(data["strategy_milestones"]) == 3
+
+
+def test_retailer_inventory_optimization_rejects_illegal_prices():
+    # Cost > MRP
+    bad_cost = {
+        "product_name": "Test Device",
+        "brand": "Generic",
+        "current_inventory": 100,
+        "current_price": 80000.0,
+        "unit_cost": 95000.0,
+        "mrp": 90000.0,
+        "competitor_avg_price": 85000.0
+    }
+    resp = client.post("/api/retailer/optimize-inventory", json=bad_cost)
+    assert resp.status_code == 400
+
+    # Price > MRP
+    bad_price = {
+        "product_name": "Test Device",
+        "brand": "Generic",
+        "current_inventory": 100,
+        "current_price": 95000.0,
+        "unit_cost": 70000.0,
+        "mrp": 90000.0,
+        "competitor_avg_price": 85000.0
+    }
+    resp = client.post("/api/retailer/optimize-inventory", json=bad_price)
+    assert resp.status_code == 400
+
+
+def test_retailer_device_type_and_icons():
+    # Test Laptop device classification
+    laptop_payload = {
+        "product_name": "Apple MacBook Air M3 (16GB 512GB)",
+        "brand": "Apple",
+        "category": "Ultrabook Laptop",
+        "device_type": "laptop",
+        "current_inventory": 30,
+        "current_price": 124900.0,
+        "unit_cost": 105000.0,
+        "mrp": 134900.0,
+        "competitor_avg_price": 121990.0
+    }
+    resp = client.post("/api/retailer/optimize-inventory", json=laptop_payload)
+    assert resp.status_code == 200
+    data = resp.json()["data"]
+    assert data["device_type"] == "laptop"
+    assert data["device_icon"] == "fa-solid fa-laptop"
+    # Laptops shouldn't return smartphone phone images
+    assert data["image_url"] == ""
+
+
+def test_retailer_inventory_persistence_and_management():
+    # 1. Fetch initial inventory (seeded items)
+    get_resp = client.get("/api/retailer/inventory")
+    assert get_resp.status_code == 200
+    init_data = get_resp.json()["data"]
+    assert "items" in init_data
+    assert init_data["total_skus"] >= 1
+    assert init_data["total_inventory_units"] > 0
+
+    # 2. Save a new custom retailer SKU
+    custom_product = {
+        "product_name": "Sony WH-1000XM5 Wireless Headphones",
+        "brand": "Sony",
+        "category": "Audio / TWS",
+        "device_type": "audio",
+        "current_inventory": 45,
+        "current_price": 28990.0,
+        "unit_cost": 21000.0,
+        "mrp": 34990.0,
+        "competitor_avg_price": 27490.0,
+        "days_to_successor": 90,
+        "notes": "Premium noise cancelling inventory"
+    }
+    save_resp = client.post("/api/retailer/save-inventory-product", json=custom_product)
+    assert save_resp.status_code == 200
+    saved_item = save_resp.json()["data"]
+    sku_id = saved_item["product_id"]
+    assert sku_id.startswith("RET_")
+    assert saved_item["device_type"] == "audio"
+    assert saved_item["device_icon"] == "fa-solid fa-headphones"
+    assert saved_item["recommended_price"] <= 34990.0
+    assert saved_item["recommended_price"] >= 21000.0
+
+    # 3. Verify it is present in GET /api/retailer/inventory
+    list_resp = client.get("/api/retailer/inventory")
+    assert list_resp.status_code == 200
+    items = list_resp.json()["data"]["items"]
+    matching = [it for it in items if it["product_id"] == sku_id]
+    assert len(matching) == 1
+
+    # 4. Verify delete
+    del_resp = client.delete(f"/api/retailer/inventory/{sku_id}")
+    assert del_resp.status_code == 200
+    after_list = client.get("/api/retailer/inventory").json()["data"]["items"]
+    assert not any(it["product_id"] == sku_id for it in after_list)
+
+
+# --------------------------------------------------------------------------
+# End-to-end Dynamic Elasticity Tests (Zero Static / Non-Zero / Identifiable)
+# --------------------------------------------------------------------------
+
+def test_end_to_end_elasticity_resolution_is_non_static_and_positive():
+    """Verify that all portfolio SKUs serve genuine, non-zero, positive elasticity values."""
+    resp = client.get("/api/optimizations/refresh")
+    assert resp.status_code == 200
+    rows = resp.json()["data"]
+    assert len(rows) > 0
+
+    valid_regimes = {"Highly Elastic", "Moderately Elastic", "Inelastic"}
+
+    for r in rows:
+        pid = r["product_id"]
+        el = r.get("elasticity")
+        regime = r.get("elasticity_regime")
+        method = r.get("elasticity_method")
+
+        assert el is not None, f"SKU {pid} has null elasticity"
+        assert el > 0.05, f"SKU {pid} has static/zero/negative elasticity: {el}"
+        assert str(el) != "-0.0", f"SKU {pid} returned -0.0"
+        assert regime in valid_regimes, f"SKU {pid} has unrecognized regime: {regime}"
+        assert method, f"SKU {pid} missing elasticity_method metadata"
+
+
+def test_simulate_endpoint_computes_dynamic_point_elasticity():
+    """Verify that /api/simulate dynamically calculates point elasticity across prices."""
+    sim_lo = client.post("/api/simulate", json={
+        "product_id": "SKU_IPHONE_17_256",
+        "price": 74000.0
+    }).json()
+
+    sim_hi = client.post("/api/simulate", json={
+        "product_id": "SKU_IPHONE_17_256",
+        "price": 82000.0
+    }).json()
+
+    assert sim_lo.get("elasticity") is not None
+    assert sim_hi.get("elasticity") is not None
+    assert sim_lo["elasticity"] > 0.05
+    assert sim_hi["elasticity"] > 0.05
+    assert sim_lo["elasticity_regime"] in {"Highly Elastic", "Moderately Elastic", "Inelastic"}
+    assert sim_hi["elasticity_regime"] in {"Highly Elastic", "Moderately Elastic", "Inelastic"}
+
+
+
+

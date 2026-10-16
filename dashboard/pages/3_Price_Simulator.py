@@ -100,10 +100,19 @@ carrying_cost = ((sim_inventory + leftover_inv) / 2.0) * cost * (0.0005 + 0.12/3
 depreciation_loss = leftover_inv * cost * 0.30
 net_profit = gross_margin - carrying_cost - depreciation_loss
 
+# Dynamic point elasticity at candidate price
+from src.models.elasticity_estimator import ElasticityEstimator
+sim_el = ElasticityEstimator.estimate_from_model(
+    forecaster, sim_price, comp_avg, comp_min,
+    mrp, cost, sim_inventory, sim_horizon
+)
+sim_el_val = sim_el.get("elasticity")
+sim_el_regime = sim_el.get("regime", "Dynamic")
+
 st.markdown("<br>", unsafe_allow_html=True)
 
 # Live KPIs
-m1, m2, m3, m4, m5 = st.columns(5)
+m1, m2, m3, m4, m5, m6 = st.columns(6)
 with m1:
     st.markdown(
         f"""
@@ -130,6 +139,17 @@ with m3:
     st.markdown(
         f"""
         <div class="metric-card">
+            <div class="metric-label">Point Elasticity (ε)</div>
+            <div class="metric-value">{f'{sim_el_val:.2f}' if sim_el_val is not None else '--'}</div>
+            <div class="metric-delta-pos">{sim_el_regime}</div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+with m4:
+    st.markdown(
+        f"""
+        <div class="metric-card">
             <div class="metric-label">Projected Clearance</div>
             <div class="metric-value">{clearance_days:.0f} Days</div>
             <div class="{'metric-delta-pos' if clearance_days <= sim_horizon else 'metric-delta-neg'}">
@@ -139,7 +159,7 @@ with m3:
         """,
         unsafe_allow_html=True
     )
-with m4:
+with m5:
     st.markdown(
         f"""
         <div class="metric-card">
@@ -152,7 +172,7 @@ with m4:
         """,
         unsafe_allow_html=True
     )
-with m5:
+with m6:
     st.markdown(
         f"""
         <div class="metric-card">

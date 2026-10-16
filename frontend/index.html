@@ -18,7 +18,17 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 
     <!-- Design-Engineered Stylesheet -->
-    <link rel="stylesheet" href="./css/style.css">
+    <link rel="stylesheet" href="./css/style.css?v=2.3">
+
+    <!-- Immediate Theme Evaluator to prevent flash of unstyled theme -->
+    <script>
+        try {
+            var savedTheme = localStorage.getItem('apex_theme');
+            if (savedTheme === 'light') {
+                document.documentElement.setAttribute('data-theme', 'light');
+            }
+        } catch (e) {}
+    </script>
 </head>
 <body class="terminal-dark">
     <!-- Keyboard Escape Hatch -->
@@ -40,9 +50,17 @@
             <span class="mono-symbol">AP</span>
             <span class="brand-wordmark">ApexPricing</span>
         </div>
-        <button id="mobile-menu-toggle" class="btn-terminal-icon" aria-label="Toggle navigation menu" aria-expanded="false" aria-controls="sidebar">
-            <i class="fa-solid fa-bars-staggered"></i>
-        </button>
+        <div style="display:flex; align-items:center; gap:0.45rem;">
+            <button class="btn-terminal-icon" id="mobile-theme-toggle" onclick="app.toggleTheme()" aria-label="Toggle theme" title="Toggle Theme">
+                <i class="fa-solid fa-sun" id="mobile-theme-icon"></i>
+            </button>
+            <button class="btn-terminal-icon" id="mobile-refresh-btn" onclick="app.refreshPage()" aria-label="Refresh page" title="Refresh Page">
+                <i class="fa-solid fa-arrows-rotate"></i>
+            </button>
+            <button id="mobile-menu-toggle" class="btn-terminal-icon" aria-label="Toggle navigation menu" aria-expanded="false" aria-controls="sidebar">
+                <i class="fa-solid fa-bars-staggered"></i>
+            </button>
+        </div>
     </header>
 
     <div class="app-shell">
@@ -86,7 +104,7 @@
                 <nav class="nav-system" aria-label="Control planes">
                     <div class="nav-header-label">
                         <span>Control Planes</span>
-                        <span class="mono-num">1&ndash;5</span>
+                        <span class="mono-num">1&ndash;6</span>
                     </div>
                     <ul class="nav-list">
                         <li class="active" data-view="overview" id="nav-overview">
@@ -115,8 +133,16 @@
                         </li>
                         <li data-view="transfers" id="nav-transfers">
                             <a href="#transfers">
-                                <i class="fa-solid fa-right-left"></i>
-                                <span>Store Balancing</span>
+                                <i class="fa-solid fa-boxes-stacked"></i>
+                                <span>Inventory &amp; Stock</span>
+                                <span class="nav-pill-badge" id="nav-stock-badge">STOCK</span>
+                            </a>
+                        </li>
+                        <li data-view="retailer-portal" id="nav-retailer-portal">
+                            <a href="#retailer-portal">
+                                <i class="fa-solid fa-store"></i>
+                                <span>Retailer Hub</span>
+                                <span class="nav-pill-badge">PORTAL</span>
                             </a>
                         </li>
                     </ul>
@@ -124,9 +150,13 @@
             </div>
 
             <div class="sidebar-bottom">
-                <div class="quick-recalc-box">
+                <div class="quick-recalc-box" style="display:flex; flex-direction:column; gap:0.5rem;">
                     <button class="btn btn-secondary btn-sm w-full" id="btn-reoptimize" onclick="app.refreshOptimizations()">
                         <i class="fa-solid fa-arrows-rotate"></i> Recalculate Engine
+                    </button>
+                    <button class="btn btn-outline btn-sm w-full" id="btn-sidebar-theme" onclick="app.toggleTheme()" title="Switch Light / Dark Theme">
+                        <i class="fa-solid fa-circle-half-stroke text-accent" id="sidebar-theme-icon"></i>
+                        <span id="sidebar-theme-text">Toggle Theme</span>
                     </button>
                 </div>
                 <div class="legal-compliance-meta">
@@ -155,11 +185,22 @@
                         <span>Jump to</span>
                         <kbd>Ctrl</kbd><kbd>K</kbd>
                     </button>
+                    <button class="btn btn-secondary btn-sm" onclick="app.switchView('retailer-portal')" title="Offline Retailer Inventory Onboarding">
+                        <i class="fa-solid fa-store text-accent"></i> Retailer Hub
+                    </button>
                     <button class="btn btn-outline btn-sm" onclick="app.openLaunchModal()">
                         <i class="fa-solid fa-bolt text-accent"></i> Simulate Launch Signal
                     </button>
-                    <button class="btn btn-primary btn-sm" onclick="app.refreshOptimizations()">
+                    <button class="btn btn-primary btn-sm" onclick="app.refreshOptimizations()" title="Recompute optimization ledger from backend">
                         <i class="fa-solid fa-rotate"></i> Sync Data
+                    </button>
+                    <button class="btn btn-outline btn-sm" id="btn-refresh-page" onclick="app.refreshPage()" title="Reload Entire Web Dashboard" aria-label="Refresh page">
+                        <i class="fa-solid fa-arrows-rotate"></i>
+                        <span>Refresh Page</span>
+                    </button>
+                    <button class="btn btn-outline btn-sm theme-toggle-btn" id="theme-toggle-btn" onclick="app.toggleTheme()" title="Switch Light / Dark Theme" aria-label="Toggle theme">
+                        <i class="fa-solid fa-sun text-accent" id="theme-toggle-icon"></i>
+                        <span id="theme-toggle-text">Light Mode</span>
                     </button>
                 </div>
             </header>
@@ -441,6 +482,10 @@
                                     <span class="spec-key">CURRENT STOCK:</span>
                                     <span class="spec-val mono-num" id="sim-inventory">0 units</span>
                                 </div>
+                                <div class="spec-row">
+                                    <span class="spec-key">BASELINE ELASTICITY:</span>
+                                    <span class="spec-val mono-num text-accent" id="sim-baseline-elasticity">--</span>
+                                </div>
                             </div>
                         </div>
 
@@ -454,6 +499,10 @@
                                 <div class="telemetry-tile">
                                     <span class="tile-label">UNIT GROSS MARGIN</span>
                                     <div class="tile-number mono-num text-accent" id="sim-result-margin">&#8377;0</div>
+                                </div>
+                                <div class="telemetry-tile">
+                                    <span class="tile-label">POINT PRICE ELASTICITY</span>
+                                    <div class="tile-number mono-num" id="sim-result-elasticity">-- <span class="tile-unit" id="sim-result-regime">Dynamic</span></div>
                                 </div>
                                 <div class="telemetry-tile">
                                     <span class="tile-label">HORIZON NET PROFIT</span>
@@ -516,67 +565,556 @@
                     </div>
                 </section>
 
-                <!-- 5. Multi-Store Balancing View -->
+                <!-- 5. Electronic Hardware Inventory & Multi-Store Balancing View -->
                 <section id="view-transfers" class="view hidden" aria-labelledby="transfers-headline">
                     <div class="view-header-strip">
                         <div>
-                            <h2 class="section-headline" id="transfers-headline">Multi-Store Balancing Engine</h2>
-                            <p class="section-subtext">Profit-maximizing inter-store transfers solved as a transportation linear program (scipy HiGHS).</p>
-                        </div>
-                        <span class="mono-badge badge-accent">Solver: LP Transportation</span>
-                    </div>
-
-                    <div class="architectural-panel mt-4">
-                        <div class="panel-header">
-                            <div>
-                                <h3 class="panel-title">Recommended Transfer Plan</h3>
-                                <p class="panel-subtitle">Only transfers with positive net benefit after &#8377;250/unit logistics cost are proposed</p>
+                            <div class="metadata-crumbs">
+                                <span>ENTERPRISE ASSET MANAGEMENT</span>
+                                <span>&bull;</span>
+                                <span>INVENTORY LIFECYCLE &amp; REBALANCE</span>
                             </div>
-                            <span class="mono-badge text-success" id="transfer-total-benefit">Net Benefit: &#8377;0</span>
+                            <h2 class="section-headline" id="transfers-headline">Electronic Hardware Inventory &amp; Stock Cockpit</h2>
+                            <p class="section-subtext">Real-time multi-store electronics inventory tracking: finite-horizon obsolescence runway, capital valuation, stockout risk alerts, and SciPy HiGHS transportation rebalancing.</p>
                         </div>
-                        <div class="table-container-scroll">
-                            <table class="terminal-table">
-                                <caption class="sr-only">Recommended inter-store transfers</caption>
-                                <thead>
-                                    <tr>
-                                        <th scope="col">PRODUCT</th>
-                                        <th scope="col">FROM STORE</th>
-                                        <th scope="col">TO STORE</th>
-                                        <th scope="col">UNITS</th>
-                                        <th scope="col">LOGISTICS</th>
-                                        <th scope="col">NET BENEFIT</th>
-                                        <th scope="col">RATIONALE</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="transfers-body">
-                                    <!-- Dynamic -->
-                                </tbody>
-                            </table>
+                        <div class="header-actions">
+                            <div class="inv-view-tabs" role="tablist" aria-label="Inventory View Modes">
+                                <button class="btn btn-sm btn-primary active" id="tab-btn-cards" onclick="app.setInventoryTab('cards')" role="tab" aria-selected="true">
+                                    <i class="fa-solid fa-layer-group"></i> Hardware Grid
+                                </button>
+                                <button class="btn btn-sm btn-outline" id="tab-btn-stores" onclick="app.setInventoryTab('stores')" role="tab" aria-selected="false">
+                                    <i class="fa-solid fa-warehouse"></i> Store Health
+                                </button>
+                                <button class="btn btn-sm btn-outline" id="tab-btn-transfers" onclick="app.setInventoryTab('transfers')" role="tab" aria-selected="false">
+                                    <i class="fa-solid fa-truck-ramp-box"></i> Transfer Plan
+                                </button>
+                            </div>
                         </div>
                     </div>
 
-                    <div class="architectural-panel mt-4">
+                    <!-- Inventory Telemetry Ribbon -->
+                    <div class="metric-ribbon">
+                        <div class="metric-strip-item">
+                            <span class="metric-ribbon-label">TOTAL STOCK ON HAND</span>
+                            <div class="metric-ribbon-val mono-num text-accent" id="inv-kpi-total-units">0</div>
+                            <span class="metric-ribbon-delta text-subtle" id="inv-kpi-stores-sub">Across 6 Metro Stores</span>
+                        </div>
+                        <div class="metric-strip-item">
+                            <span class="metric-ribbon-label">PORTFOLIO VALUATION</span>
+                            <div class="metric-ribbon-val mono-num" id="inv-kpi-valuation">&#8377;0</div>
+                            <span class="metric-ribbon-delta text-subtle">At Acquisition Cost</span>
+                        </div>
+                        <div class="metric-strip-item">
+                            <span class="metric-ribbon-label">CAPITAL AT OBSOLESCENCE RISK</span>
+                            <div class="metric-ribbon-val text-warning mono-num" id="inv-kpi-risk-capital">&#8377;0</div>
+                            <span class="metric-ribbon-delta text-warning" id="inv-kpi-risk-sub">&lt; 30d Pre-Successor</span>
+                        </div>
+                        <div class="metric-strip-item">
+                            <span class="metric-ribbon-label">WEIGHTED DAYS OF SUPPLY</span>
+                            <div class="metric-ribbon-val mono-num text-success" id="inv-kpi-avg-dos">0.0d</div>
+                            <span class="metric-ribbon-delta text-subtle">Average Catalog Runway</span>
+                        </div>
+                    </div>
+
+                    <!-- Interactive Filter & Brand Toolbar -->
+                    <div class="inv-toolbar-strip architectural-panel mt-4">
+                        <div class="inv-toolbar-left">
+                            <div class="terminal-search-box">
+                                <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                                <input type="text" id="inv-search-input" class="terminal-search-input" placeholder="Filter inventory by device, brand, SKU..." oninput="app.filterInventoryCards()" aria-label="Search hardware inventory">
+                            </div>
+                            <div class="inv-brand-pills" id="inv-brand-pills">
+                                <button class="brand-pill active" onclick="app.setInventoryBrandFilter('all')">All Brands</button>
+                                <button class="brand-pill" onclick="app.setInventoryBrandFilter('Apple')">Apple</button>
+                                <button class="brand-pill" onclick="app.setInventoryBrandFilter('Samsung')">Samsung</button>
+                                <button class="brand-pill" onclick="app.setInventoryBrandFilter('Google')">Google</button>
+                                <button class="brand-pill" onclick="app.setInventoryBrandFilter('OnePlus')">OnePlus</button>
+                                <button class="brand-pill" onclick="app.setInventoryBrandFilter('Xiaomi')">Xiaomi</button>
+                            </div>
+                        </div>
+                        <div class="inv-toolbar-right">
+                            <select id="inv-risk-filter" class="terminal-select" onchange="app.filterInventoryCards()" aria-label="Filter inventory by risk">
+                                <option value="all">Health: All States</option>
+                                <option value="Healthy">Healthy (15-40d)</option>
+                                <option value="Overstock">Overstock (&gt;40d DOS)</option>
+                                <option value="Urgent">Urgent Clearance (&lt;25d to Successor)</option>
+                                <option value="Stockout">Stockout Imminent (&lt;12d DOS)</option>
+                            </select>
+                            <select id="inv-sort-select" class="terminal-select" onchange="app.filterInventoryCards()" aria-label="Sort inventory">
+                                <option value="inventory-desc">Sort: Highest Units</option>
+                                <option value="value-desc">Sort: Capital Valuation</option>
+                                <option value="successor-asc">Sort: Nearest Successor</option>
+                                <option value="dos-desc">Sort: Highest Days Supply</option>
+                                <option value="dos-asc">Sort: Lowest Days Supply</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Sub-View 1: Hardware Device Cards Grid -->
+                    <div id="inv-pane-cards" class="inv-tab-pane active">
+                        <div class="inv-cards-grid" id="inventory-cards-grid">
+                            <!-- Dynamic Hardware Cards Injected Here -->
+                        </div>
+                    </div>
+
+                    <!-- Sub-View 2: Store-Level Supply Health Panel -->
+                    <div id="inv-pane-stores" class="inv-tab-pane hidden">
+                        <div class="architectural-panel mt-4">
+                            <div class="panel-header">
+                                <div>
+                                    <h3 class="panel-title">Store-Level Supply Health</h3>
+                                    <p class="panel-subtitle">Days-of-supply snapshot per store and SKU across 6 Indian metro locations</p>
+                                </div>
+                                <span class="mono-badge">Multi-Store Topology</span>
+                            </div>
+                            <div class="table-container-scroll">
+                                <table class="terminal-table">
+                                    <caption class="sr-only">Store-level supply health</caption>
+                                    <thead>
+                                        <tr>
+                                            <th scope="col">PRODUCT</th>
+                                            <th scope="col">STORE</th>
+                                            <th scope="col">CITY</th>
+                                            <th scope="col">INVENTORY</th>
+                                            <th scope="col">VELOCITY</th>
+                                            <th scope="col">DAYS SUPPLY</th>
+                                            <th scope="col">STATUS</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="store-health-body">
+                                        <!-- Dynamic -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Sub-View 3: Inter-Store Transfer Plan Panel -->
+                    <div id="inv-pane-transfers" class="inv-tab-pane hidden">
+                        <div class="architectural-panel mt-4">
+                            <div class="panel-header">
+                                <div>
+                                    <h3 class="panel-title">Recommended Inter-Store Transfer Plan</h3>
+                                    <p class="panel-subtitle">Only transfers with positive net benefit after &#8377;250/unit logistics cost are proposed (scipy HiGHS solver)</p>
+                                </div>
+                                <span class="mono-badge text-success" id="transfer-total-benefit">Net Benefit: &#8377;0</span>
+                            </div>
+                            <div class="table-container-scroll">
+                                <table class="terminal-table">
+                                    <caption class="sr-only">Recommended inter-store transfers</caption>
+                                    <thead>
+                                        <tr>
+                                            <th scope="col">PRODUCT</th>
+                                            <th scope="col">FROM STORE</th>
+                                            <th scope="col">TO STORE</th>
+                                            <th scope="col">UNITS</th>
+                                            <th scope="col">LOGISTICS</th>
+                                            <th scope="col">NET BENEFIT</th>
+                                            <th scope="col">RATIONALE</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="transfers-body">
+                                        <!-- Dynamic -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 6. Offline Retailer Inventory Studio & Predictor View -->
+                <section id="view-retailer-portal" class="view hidden" aria-labelledby="retailer-headline">
+                    <div class="view-header-strip">
+                        <div>
+                            <div class="metadata-crumbs">
+                                <span>OFFLINE RETAIL STUDIO</span>
+                                <span>&bull;</span>
+                                <span>INVENTORY ONBOARDING &amp; PREDICTION</span>
+                            </div>
+                            <h2 class="section-headline" id="retailer-headline">Offline Retailer Inventory &amp; Clearance Engine</h2>
+                            <p class="section-subtext">Empowering physical electronics dealers: optimize shelf prices against online showrooming, prevent successor depreciation, and maximize net profits under statutory Legal Metrology MRP caps.</p>
+                        </div>
+                        <div class="header-actions">
+                            <button class="btn btn-outline btn-sm" onclick="app.loadSavedRetailerInventory()">
+                                <i class="fa-solid fa-arrows-rotate"></i> Reload Inventory
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Retailer Metric Strip -->
+                    <div class="metric-ribbon">
+                        <div class="metric-strip-item">
+                            <span class="metric-ribbon-label">RETAILER ACTIVE SKUS</span>
+                            <div class="metric-ribbon-val mono-num" id="ret-kpi-skus">0</div>
+                            <span class="metric-ribbon-delta text-accent" id="ret-kpi-skus-sub">Onboarded Store Inventory</span>
+                        </div>
+                        <div class="metric-strip-item">
+                            <span class="metric-ribbon-label">TOTAL STOCK ON HAND</span>
+                            <div class="metric-ribbon-val mono-num" id="ret-kpi-units">0 units</div>
+                            <span class="metric-ribbon-delta text-subtle" id="ret-kpi-value">Valuation: &#8377;0</span>
+                        </div>
+                        <div class="metric-strip-item">
+                            <span class="metric-ribbon-label">PROJECTED PROFIT LIFT</span>
+                            <div class="metric-ribbon-val text-success mono-num" id="ret-kpi-lift">&plusmn;&#8377;0</div>
+                            <span class="metric-ribbon-delta text-success" id="ret-kpi-lift-sub">+0.0% vs Status Quo</span>
+                        </div>
+                        <div class="metric-strip-item">
+                            <span class="metric-ribbon-label">SHOWROOMING PREMIUM</span>
+                            <div class="metric-ribbon-val text-accent mono-num">&#8377;1,000</div>
+                            <span class="metric-ribbon-delta text-accent">In-Store Immediate Value Buffer</span>
+                        </div>
+                    </div>
+
+                    <!-- Split Console Grid: Input Console (Left) + AI Results Studio (Right) -->
+                    <div class="retailer-studio-grid">
+                        <!-- Left Column: Add Product & Inventory Form -->
+                        <div class="retailer-form-panel">
+                            <!-- Presets -->
+                            <div class="form-section-block">
+                                <span class="form-section-title">
+                                    <i class="fa-solid fa-wand-magic-sparkles text-accent"></i> Quick Device Presets
+                                </span>
+                                <div class="preset-chips-cluster">
+                                    <button type="button" class="preset-chip-btn" onclick="app.loadRetailerPreset('iphone16')">
+                                        <i class="fa-brands fa-apple"></i> iPhone 16 (14d Clearance)
+                                    </button>
+                                    <button type="button" class="preset-chip-btn" onclick="app.loadRetailerPreset('galaxy_s25')">
+                                        <i class="fa-solid fa-mobile-screen"></i> Galaxy S25 (30d Overstock)
+                                    </button>
+                                    <button type="button" class="preset-chip-btn" onclick="app.loadRetailerPreset('oneplus13')">
+                                        <i class="fa-solid fa-mobile-screen"></i> OnePlus 13 (Parity)
+                                    </button>
+                                    <button type="button" class="preset-chip-btn" onclick="app.loadRetailerPreset('macbook_m3')">
+                                        <i class="fa-solid fa-laptop"></i> MacBook Air M3 (Laptop)
+                                    </button>
+                                    <button type="button" class="preset-chip-btn" onclick="app.loadRetailerPreset('sony_xm5')">
+                                        <i class="fa-solid fa-headphones"></i> Sony WH-1000XM5 (Audio)
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Device Identity -->
+                            <div class="form-section-block">
+                                <span class="form-section-title">
+                                    <i class="fa-solid fa-tag text-accent"></i> Electronic Model &amp; Hardware Category
+                                </span>
+                                <div class="retailer-input-group">
+                                    <label for="ret-product-name" class="field-label">DEVICE MODEL NAME</label>
+                                    <input type="text" id="ret-product-name" class="terminal-input" placeholder="e.g. Apple iPhone 16 (128GB Blue)" oninput="app.updateDeviceIconPreview()">
+                                </div>
+                                <div class="retailer-input-row">
+                                    <div class="retailer-input-group">
+                                        <label for="ret-brand" class="field-label">BRAND</label>
+                                        <select id="ret-brand" class="terminal-select" onchange="app.updateDeviceIconPreview()">
+                                            <option value="Apple">Apple</option>
+                                            <option value="Samsung">Samsung</option>
+                                            <option value="Google">Google</option>
+                                            <option value="OnePlus">OnePlus</option>
+                                            <option value="Xiaomi">Xiaomi / Redmi</option>
+                                            <option value="Sony">Sony</option>
+                                            <option value="Asus">Asus</option>
+                                            <option value="Dell">Dell</option>
+                                            <option value="HP">HP</option>
+                                            <option value="Boat">Boat</option>
+                                            <option value="Other">Other Brand</option>
+                                        </select>
+                                    </div>
+                                    <div class="retailer-input-group">
+                                        <label for="ret-device-type" class="field-label">HARDWARE TYPE</label>
+                                        <select id="ret-device-type" class="terminal-select" onchange="app.updateDeviceIconPreview()">
+                                            <option value="smartphone">Smartphone</option>
+                                            <option value="laptop">Laptop / Ultrabook</option>
+                                            <option value="tablet">Tablet / iPad</option>
+                                            <option value="smartwatch">Smartwatch / Wearable</option>
+                                            <option value="audio">Audio / Headphones / TWS</option>
+                                            <option value="tv">Smart TV / Display</option>
+                                            <option value="console">Gaming Console</option>
+                                            <option value="accessories">Accessories / IoT</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div style="display:flex; align-items:center; gap:0.75rem; padding: 0.5rem 0.65rem; background: var(--bg-inset); border: 1px solid var(--line); border-radius: var(--radius-sm);">
+                                    <div id="ret-device-icon-preview" class="device-icon-box device-smartphone">
+                                        <i class="fa-solid fa-mobile-screen"></i>
+                                    </div>
+                                    <div style="font-size:0.75rem; color:var(--text-secondary);">
+                                        <span id="ret-preview-category">Smartphone Device</span>
+                                        <div style="font-size:0.65rem; color:var(--text-muted);" id="ret-preview-hint">Icon automatically synchronized with electronic hardware classification.</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Inventory & Acquisition Economics -->
+                            <div class="form-section-block">
+                                <span class="form-section-title">
+                                    <i class="fa-solid fa-boxes-stacked text-accent"></i> Stock Units &amp; Cost Basis
+                                </span>
+                                <div class="retailer-input-row">
+                                    <div class="retailer-input-group">
+                                        <label for="ret-inventory" class="field-label">STOCK ON HAND (UNITS)</label>
+                                        <input type="number" id="ret-inventory" class="terminal-input mono-num" min="1" max="10000" value="65">
+                                    </div>
+                                    <div class="retailer-input-group">
+                                        <label for="ret-days-successor" class="field-label">CLEARANCE DEADLINE (DAYS)</label>
+                                        <input type="number" id="ret-days-successor" class="terminal-input mono-num" min="5" max="365" value="18">
+                                    </div>
+                                </div>
+                                <div class="retailer-input-row">
+                                    <div class="retailer-input-group">
+                                        <label for="ret-unit-cost" class="field-label">UNIT COST (&#8377; WHOLESALE)</label>
+                                        <input type="number" id="ret-unit-cost" class="terminal-input mono-num" min="100" step="100" value="58000">
+                                    </div>
+                                    <div class="retailer-input-group">
+                                        <label for="ret-mrp" class="field-label">STATUTORY MRP (&#8377; CEILING)</label>
+                                        <input type="number" id="ret-mrp" class="terminal-input mono-num" min="100" step="100" value="79900">
+                                    </div>
+                                </div>
+                                <div class="retailer-input-group">
+                                    <label for="ret-current-price" class="field-label">CURRENT STORE SELLING PRICE (&#8377;)</label>
+                                    <input type="number" id="ret-current-price" class="terminal-input mono-num" min="100" step="100" value="69999">
+                                    <span class="field-caption">Must not exceed statutory MRP (Rule 18(2) Legal Metrology Act).</span>
+                                </div>
+                            </div>
+
+                            <!-- Competition & Channel Benchmarks -->
+                            <div class="form-section-block">
+                                <span class="form-section-title">
+                                    <i class="fa-solid fa-radar text-accent"></i> Local Market &amp; E-Commerce Benchmark
+                                </span>
+                                <div class="retailer-input-row">
+                                    <div class="retailer-input-group">
+                                        <label for="ret-comp-avg" class="field-label">MARKET AVG PRICE (&#8377;)</label>
+                                        <input type="number" id="ret-comp-avg" class="terminal-input mono-num" min="100" step="100" value="66490">
+                                    </div>
+                                    <div class="retailer-input-group">
+                                        <label for="ret-comp-min" class="field-label">ONLINE FLOOR PRICE (&#8377;)</label>
+                                        <input type="number" id="ret-comp-min" class="terminal-input mono-num" min="100" step="100" value="64999">
+                                    </div>
+                                </div>
+                                <div class="retailer-input-row">
+                                    <div class="retailer-input-group">
+                                        <label for="ret-offline-premium" class="field-label">SHOWROOMING PREMIUM (&#8377;)</label>
+                                        <input type="number" id="ret-offline-premium" class="terminal-input mono-num" min="0" step="100" value="1000">
+                                    </div>
+                                    <div class="retailer-input-group">
+                                        <label for="ret-store-channel" class="field-label">RETAIL CHANNEL TIER</label>
+                                        <select id="ret-store-channel" class="terminal-select">
+                                            <option value="Metro Flagship Store">Metro Flagship Store</option>
+                                            <option value="Tier-2 Hub Store">Tier-2 Hub Store</option>
+                                            <option value="High-Street Electronics">High-Street Electronics</option>
+                                            <option value="Multi-brand Retail Outlet">Multi-brand Retail Outlet</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="statutory-callout">
+                                <i class="fa-solid fa-scale-balanced"></i>
+                                <span>Legal Metrology Act, 2009: Prices above MRP are illegal and mathematically rejected by the engine.</span>
+                            </div>
+
+                            <div style="display:flex; flex-direction:column; gap:0.5rem; margin-top:0.4rem;">
+                                <button type="button" class="btn btn-primary w-full" id="btn-run-retailer-opt" onclick="app.submitRetailerOptimization()">
+                                    <i class="fa-solid fa-microchip"></i> Run AI Pricing &amp; Clearance Optimization
+                                </button>
+                                <button type="button" class="btn btn-outline btn-sm w-full" onclick="app.resetRetailerForm()">
+                                    <i class="fa-solid fa-arrow-rotate-left"></i> Reset Inputs
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Right Column: Results Studio -->
+                        <div class="retailer-results-panel">
+                            <!-- Empty Guidance State -->
+                            <div id="ret-empty-state" class="retailer-empty-prompt">
+                                <div class="retailer-empty-icon">
+                                    <i class="fa-solid fa-store"></i>
+                                </div>
+                                <h3 style="font-size:1.15rem; font-weight:600; color:var(--text-primary);">Ready to Optimize Retailer Inventory</h3>
+                                <p style="max-width:440px; margin-top:0.5rem; font-size:0.82rem; color:var(--text-secondary); line-height:1.6;">
+                                    Fill in your store's electronic product specs and stock numbers on the left or select a <strong>Quick Preset</strong>, then click <strong>Run AI Optimization</strong>. The LightGBM demand forecaster, finite-horizon solver, and Bertrand duopoly simulator will calculate the exact price point to maximize clearance and gross profit.
+                                </p>
+                            </div>
+
+                            <!-- Shimmer Loading State -->
+                            <div id="ret-loading-state" class="architectural-panel hidden" style="padding:2.5rem; text-align:center;">
+                                <div style="display:inline-block; font-size:2rem; color:var(--accent-signal); margin-bottom:1rem;">
+                                    <i class="fa-solid fa-arrows-rotate fa-spin"></i>
+                                </div>
+                                <h4 style="font-size:0.95rem; font-weight:600;">Executing Machine Learning Optimization...</h4>
+                                <p style="font-size:0.75rem; color:var(--text-muted); margin-top:0.35rem;">Solving finite-horizon lattice, estimating causal elasticity, and simulating duopoly equilibrium.</p>
+                            </div>
+
+                            <!-- Live Prediction Studio Container -->
+                            <div id="ret-results-container" class="hidden" style="display:flex; flex-direction:column; gap:1.15rem;">
+                                <!-- Hero Optimization Strip -->
+                                <div class="retailer-hero-banner">
+                                    <div class="retailer-hero-left">
+                                        <div id="ret-hero-device-visual" class="device-visual-wrap">
+                                            <div class="device-icon-box lg device-smartphone">
+                                                <i class="fa-solid fa-mobile-screen"></i>
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <div style="display:flex; align-items:center; gap:0.45rem;">
+                                                <span class="device-category-chip" id="ret-hero-category">FLAGSHIP SMARTPHONE</span>
+                                                <span class="mono-badge badge-accent" id="ret-hero-pace">Safe Clearance Pace</span>
+                                            </div>
+                                            <h3 style="font-size:1.15rem; font-weight:700; margin-top:0.25rem; color:var(--text-primary);" id="ret-hero-title">Apple iPhone 16</h3>
+                                            <div style="font-size:0.75rem; color:var(--text-muted); margin-top:0.15rem;">
+                                                Current: <span class="mono-num text-subtle" id="ret-hero-current-price">&#8377;69,999</span> &bull; MRP: <span class="mono-num text-subtle" id="ret-hero-mrp">&#8377;79,900</span> &bull; Stock: <span class="mono-num" id="ret-hero-stock">65 units</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="retailer-price-callout">
+                                        <span class="mono-label" style="font-size:0.65rem; color:var(--text-muted);">RECOMMENDED SELLING PRICE</span>
+                                        <div class="retailer-rec-price" id="ret-hero-rec-price">&#8377;66,999</div>
+                                        <span class="retailer-price-action-badge badge badge-primary" id="ret-hero-action-badge">Clearance Markdown</span>
+                                        <span class="mono-num font-semibold text-success" style="font-size:0.75rem; margin-top:0.2rem;" id="ret-hero-profit-lift">+&#8377;124,500 (+14.2% Net Profit)</span>
+                                    </div>
+                                </div>
+
+                                <!-- 4 KPI Telemetry Tiles -->
+                                <div class="telemetry-tiles-grid">
+                                    <div class="telemetry-tile">
+                                        <span class="tile-label">PREDICTED DAILY VELOCITY</span>
+                                        <div class="tile-number mono-num" id="ret-res-velocity">3.6 <span class="tile-unit">units/day</span></div>
+                                        <span class="field-caption" id="ret-res-velocity-sub">vs 2.1 units status quo</span>
+                                    </div>
+                                    <div class="telemetry-tile">
+                                        <span class="tile-label">CLEARANCE TIME</span>
+                                        <div class="tile-number mono-num text-accent" id="ret-res-clearance">17.8 <span class="tile-unit">days</span></div>
+                                        <span class="field-caption" id="ret-res-clearance-sub">Within 18d deadline</span>
+                                    </div>
+                                    <div class="telemetry-tile">
+                                        <span class="tile-label">CLEARANCE PROBABILITY</span>
+                                        <div class="tile-number mono-num text-success" id="ret-res-prob">94.5%</div>
+                                        <span class="field-caption" id="ret-res-prob-sub">High certainty clearance</span>
+                                    </div>
+                                    <div class="telemetry-tile">
+                                        <span class="tile-label">HOLDING &amp; WRITE-DOWN SAVED</span>
+                                        <div class="tile-number mono-num text-warning" id="ret-res-holding">&#8377;42,800</div>
+                                        <span class="field-caption" id="ret-res-holding-sub">Carrying costs prevented</span>
+                                    </div>
+                                </div>
+
+                                <!-- Interactive Demand & Profit Curve Chart -->
+                                <div class="architectural-panel">
+                                    <div class="panel-header">
+                                        <div>
+                                            <h3 class="panel-title">Expected Profit &amp; Demand Response Lattice</h3>
+                                            <p class="panel-subtitle">Discrete finite-horizon profit curve balancing margin vs inventory holding cost</p>
+                                        </div>
+                                        <div class="legend-cluster">
+                                            <span class="legend-swatch bg-cyan"></span> <span class="mono-label">Lifecycle Profit (&#8377;)</span>
+                                            <span class="legend-swatch bg-white ml-3"></span> <span class="mono-label">Daily Demand (u/d)</span>
+                                        </div>
+                                    </div>
+                                    <div class="chart-canvas-wrapper" style="height:250px;">
+                                        <canvas id="retailerCurveChart" aria-label="Retailer candidate price profit curve" role="img"></canvas>
+                                    </div>
+                                </div>
+
+                                <!-- Multi-Channel Competitor Benchmarks Matrix -->
+                                <div class="architectural-panel">
+                                    <div class="panel-header">
+                                        <div>
+                                            <h3 class="panel-title">Multi-Channel Price Positioning Matrix</h3>
+                                            <p class="panel-subtitle">Comparative benchmark against local organized retail and e-commerce platforms</p>
+                                        </div>
+                                        <span class="mono-badge badge-accent">Offline Arbitrage Defense</span>
+                                    </div>
+                                    <div class="table-container-scroll">
+                                        <table class="terminal-table">
+                                            <caption class="sr-only">Competitor benchmarks matrix</caption>
+                                            <thead>
+                                                <tr>
+                                                    <th scope="col">CHANNEL / COMPETITOR</th>
+                                                    <th scope="col">RETAIL TIER</th>
+                                                    <th scope="col">SHELF PRICE</th>
+                                                    <th scope="col">DELTA VS AI</th>
+                                                    <th scope="col">EST. MARGIN</th>
+                                                    <th scope="col">POSITIONING</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="ret-benchmarks-body">
+                                                <!-- Dynamic -->
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+
+                                <!-- 3-Stage Retailer Execution Roadmap -->
+                                <div class="architectural-panel">
+                                    <div class="panel-header">
+                                        <div>
+                                            <h3 class="panel-title">Actionable 3-Stage Retailer Execution Playbook</h3>
+                                            <p class="panel-subtitle">Step-by-step store instructions to stimulate sales and defeat online showrooming</p>
+                                        </div>
+                                    </div>
+                                    <div class="strategy-milestone-grid" id="ret-strategy-steps">
+                                        <!-- Injected dynamically -->
+                                    </div>
+                                </div>
+
+                                <!-- Explainable AI Retailer Business Memo -->
+                                <div class="architectural-panel">
+                                    <div class="panel-header">
+                                        <div>
+                                            <h3 class="panel-title">Algorithmic Rationale &amp; TreeSHAP Memo</h3>
+                                            <p class="panel-subtitle">Auditable commercial reasoning generated by the machine learning engine</p>
+                                        </div>
+                                        <span class="mono-badge">Solver: Monotone LightGBM + Grid Search</span>
+                                    </div>
+                                    <div style="padding:1rem 1.15rem; font-size:0.83rem; line-height:1.7; color:var(--text-secondary); background:var(--bg-inset); border-radius:var(--radius-sm); border:1px solid var(--line);" id="ret-memo-text">
+                                        <!-- Dynamic -->
+                                    </div>
+                                </div>
+
+                                <!-- Save & Action Row -->
+                                <div class="retailer-actions-row">
+                                    <div style="font-size:0.75rem; color:var(--text-muted);">
+                                        <i class="fa-solid fa-circle-info text-accent"></i> Saving adds this device to your live store tracker and SKU Matrix.
+                                    </div>
+                                    <div style="display:flex; align-items:center; gap:0.65rem;">
+                                        <button type="button" class="btn btn-outline btn-sm" onclick="app.testRetailerInSimulator()">
+                                            <i class="fa-solid fa-sliders"></i> Test In Simulator
+                                        </button>
+                                        <button type="button" class="btn btn-success btn-sm" id="btn-save-retailer-product" onclick="app.saveCurrentRetailerProduct()">
+                                            <i class="fa-solid fa-floppy-disk"></i> Save &amp; Track In Store Inventory
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Bottom Section: Active Retailer Store Inventory & Live Ledger -->
+                    <div class="architectural-panel mt-6">
                         <div class="panel-header">
                             <div>
-                                <h3 class="panel-title">Store-Level Supply Health</h3>
-                                <p class="panel-subtitle">Days-of-supply snapshot per store and SKU (latest inventory state)</p>
+                                <h3 class="panel-title">Your Active Retailer Inventory &amp; Live AI Ledger</h3>
+                                <p class="panel-subtitle">Real-time status of physical stock items onboarded into the pricing engine</p>
                             </div>
+                            <span class="mono-badge badge-accent" id="ret-ledger-count">3 Products Tracked</span>
                         </div>
                         <div class="table-container-scroll">
                             <table class="terminal-table">
-                                <caption class="sr-only">Store-level supply health</caption>
+                                <caption class="sr-only">Active retailer store inventory and AI prices</caption>
                                 <thead>
                                     <tr>
-                                        <th scope="col">PRODUCT</th>
-                                        <th scope="col">STORE</th>
-                                        <th scope="col">CITY</th>
-                                        <th scope="col">INVENTORY</th>
-                                        <th scope="col">VELOCITY</th>
-                                        <th scope="col">DAYS SUPPLY</th>
-                                        <th scope="col">STATUS</th>
+                                        <th scope="col">PRODUCT &amp; HARDWARE TYPE</th>
+                                        <th scope="col">ON-HAND STOCK</th>
+                                        <th scope="col">HORIZON</th>
+                                        <th scope="col">UNIT COST</th>
+                                        <th scope="col">CURRENT PRICE</th>
+                                        <th scope="col">AI RECOMMENDED</th>
+                                        <th scope="col">NET PROFIT LIFT</th>
+                                        <th scope="col">CLEARANCE PROB</th>
+                                        <th scope="col">ACTIONS</th>
                                     </tr>
                                 </thead>
-                                <tbody id="store-health-body">
+                                <tbody id="retailer-inventory-body">
                                     <!-- Dynamic -->
                                 </tbody>
                             </table>
@@ -667,6 +1205,32 @@
         </div>
     </div>
 
+    <!-- Dedicated Electronic Hardware Device Inspector Modal -->
+    <div id="hardware-modal" class="modal-backdrop hidden" onclick="app.closeHardwareModalOnBackdrop(event)">
+        <div class="modal-dialog-box hardware-modal-dialog" role="dialog" aria-modal="true" aria-label="Electronic hardware specification &amp; stock inspector">
+            <div class="dialog-header">
+                <div class="dialog-badge">
+                    <i class="fa-solid fa-microchip"></i> HARDWARE ASSET &amp; INVENTORY INSPECTOR
+                </div>
+                <button class="btn-terminal-icon" onclick="app.closeHardwareModal()" aria-label="Close dialog">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <div class="dialog-body hardware-modal-body" id="hardware-modal-content">
+                <!-- Dynamically populated by app.openHardwareInspector(productId) -->
+            </div>
+            <div class="dialog-footer">
+                <button class="btn btn-secondary btn-sm" onclick="app.closeHardwareModal()">Dismiss</button>
+                <button class="btn btn-outline btn-sm" id="btn-hw-rebalance" onclick="app.setInventoryTab('transfers'); app.closeHardwareModal();">
+                    <i class="fa-solid fa-truck-ramp-box"></i> View Transfer Plan
+                </button>
+                <button class="btn btn-primary btn-sm" id="btn-hw-simulate" onclick="app.simulateFromHardwareModal()">
+                    <i class="fa-solid fa-sliders"></i> Test In Simulator
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- Command Palette (Keyboard Navigation Layer) -->
     <div class="cmdk-backdrop" id="cmdk-backdrop">
         <div class="cmdk-panel" role="dialog" aria-modal="true" aria-label="Command palette">
@@ -685,7 +1249,7 @@
     </div>
 
     <!-- Client Logic: application engine first, then the navigation shell that wraps it -->
-    <script src="./js/app.js" defer></script>
-    <script src="./js/shell.js" defer></script>
+    <script src="./js/app.js?v=2.3" defer></script>
+    <script src="./js/shell.js?v=2.3" defer></script>
 </body>
 </html>

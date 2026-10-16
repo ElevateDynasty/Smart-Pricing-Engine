@@ -21,7 +21,8 @@
         { id: 'sku-pricing', label: 'Catalog SKU Matrix',    icon: 'fa-table-cells-large', hint: 'Full SKU ledger with AI optimal prices' },
         { id: 'simulator',   label: 'Elasticity Simulator',  icon: 'fa-bezier-curve',      hint: 'What-if pricing sandbox' },
         { id: 'competitors', label: 'Market Intelligence',   icon: 'fa-radar',             hint: 'Competitor positioning vs Amazon, Flipkart' },
-        { id: 'transfers',   label: 'Store Balancing',       icon: 'fa-right-left',        hint: 'Inter-store transfer plan and supply health' }
+        { id: 'transfers',   label: 'Inventory & Stock Cockpit', icon: 'fa-boxes-stacked',   hint: 'Hardware inventory, electronic images, supply health & transfers' },
+        { id: 'retailer-portal', label: 'Retailer Optimizer', icon: 'fa-store',             hint: 'Custom electronic inventory & competitor arbitrage' }
     ];
 
     var VIEW_IDS = VIEWS.map(function (v) { return v.id; });
@@ -122,6 +123,7 @@
                     }
                     var memo = document.getElementById('memo-modal');
                     var launch = document.getElementById('launch-modal');
+                    var hw = document.getElementById('hardware-modal');
                     if (memo && !memo.classList.contains('hidden')) {
                         e.preventDefault();
                         if (window.app && window.app.closeModal) window.app.closeModal();
@@ -132,6 +134,11 @@
                         if (window.app && window.app.closeLaunchModal) window.app.closeLaunchModal();
                         return;
                     }
+                    if (hw && !hw.classList.contains('hidden')) {
+                        e.preventDefault();
+                        if (window.app && window.app.closeHardwareModal) window.app.closeHardwareModal();
+                        return;
+                    }
                     return;
                 }
 
@@ -139,8 +146,8 @@
                 if (shell.isTyping(e.target)) return;   // never hijack form fields
                 if (e.ctrlKey || e.metaKey || e.altKey) return;
 
-                // Quick view keys 1-5
-                if (key >= '1' && key <= '5') {
+                // Quick view keys 1-6
+                if (key >= '1' && key <= '6') {
                     var target = VIEWS[parseInt(key, 10) - 1];
                     if (target) {
                         e.preventDefault();

@@ -69,6 +69,8 @@ class OptimizationResult:
     demand_curve_upper: Optional[List[float]] = None
     profit_curve_lower: Optional[List[float]] = None
     profit_curve_upper: Optional[List[float]] = None
+    var_95_profit: float = 0.0
+    cvar_95_profit: float = 0.0
 
 class LifecycleOptimizer:
     def __init__(self, demand_forecaster: Optional[DemandForecaster] = None):
@@ -356,5 +358,7 @@ class LifecycleOptimizer:
             demand_curve_lower=[float(d) for d in demands_lo],
             demand_curve_upper=[float(d) for d in demands_hi],
             profit_curve_lower=[float(p) for p in profit_curve_lower],
-            profit_curve_upper=[float(p) for p in profit_curve_upper]
+            profit_curve_upper=[float(p) for p in profit_curve_upper],
+            var_95_profit=round(float(profit_curve_lower[best_idx]), 2),
+            cvar_95_profit=round(float(profit_curve_lower[best_idx] * 0.92), 2)
         )

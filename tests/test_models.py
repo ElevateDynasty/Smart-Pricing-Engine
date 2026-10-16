@@ -171,5 +171,21 @@ def test_optimizer_prediction_intervals():
     assert len(res.demand_curve_upper) == len(res.demand_curve)
     assert len(res.profit_curve_lower) == len(res.profit_curve)
     assert len(res.profit_curve_upper) == len(res.profit_curve)
+    assert hasattr(res, "var_95_profit")
+    assert hasattr(res, "cvar_95_profit")
+    assert res.cvar_95_profit <= res.expected_lifecycle_profit
+
+
+def test_causal_elasticity_2sls():
+    """Verify that 2SLS instrumental variable regression runs and tests endogeneity."""
+    from src.data.data_pipeline import DataPipeline
+    dp = DataPipeline()
+    df = dp.build_unified_dataset()
+    ee = ElasticityEstimator()
+    result = ee.estimate_causal_elasticity_2sls(df, "SKU_IPHONE_17_256")
+    assert "method" in result
+    assert "Two-Stage Least Squares" in result["method"]
+    assert "hausman_consistent" in result
+
 
 
