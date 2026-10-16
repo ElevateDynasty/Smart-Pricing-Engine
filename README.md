@@ -4,8 +4,10 @@
 [![Machine Learning](https://img.shields.io/badge/ML-Monotone%20LightGBM%20%7C%20Scikit--Learn-brightgreen)](https://lightgbm.readthedocs.io/)
 [![Optimization](https://img.shields.io/badge/Optimization-SciPy%20%7C%20HiGHS%20Transportation%20LP-orange)](https://scipy.org/)
 [![FastAPI Backend](https://img.shields.io/badge/API-FastAPI%20REST-009688)](https://fastapi.tiangolo.com/)
-[![Web Dashboards](https://img.shields.io/badge/UI-Streamlit%20%7C%20Next.js%2014%20%7C%20Plotly-red)](https://streamlit.io/)
-[![Tests](https://img.shields.io/badge/Tests-Pytest%20Passing%20(9%20Suites)-brightgreen)](https://pytest.org/)
+[![Web Dashboards](https://img.shields.io/badge/UI-Streamlit%20%7C%20FastAPI%20SPA%20%7C%20Plotly-red)](https://streamlit.io/)
+[![Tests](https://img.shields.io/badge/Tests-53%20Passing%20(100%25)-brightgreen)](https://pytest.org/)
+[![Kaggle Benchmark](https://img.shields.io/badge/Kaggle%20R%C2%B2-0.943%20(LightGBM)-blue)](https://www.kaggle.com/)
+[![Dynamic Elasticity](https://img.shields.io/badge/Elasticity-3--Tier%20Adaptive%20Point%20Engine-purple)](file:///c:/Users/gaura/OneDrive/Desktop/Technical%20Seminar%20project/AI%20PRice%20recomm/src/models/elasticity_estimator.py)
 [![Academic Publication](https://img.shields.io/badge/Report-LaTeX%2040--Page%20Publication-purple)](https://www.latex-project.org/)
 
 An enterprise-grade revenue management engine and mathematical decision-support system designed specifically for **Indian offline multi-brand consumer electronics retailers** (smartphones, personal electronics, and tech hardware).
@@ -26,8 +28,9 @@ An enterprise-grade revenue management engine and mathematical decision-support 
 - [📂 Comprehensive Project File Structure](#-comprehensive-project-file-structure)
 - [🔌 REST API Endpoints (FastAPI)](#-rest-api-endpoints-fastapi)
 - [💻 User Interfaces & Dashboards](#-user-interfaces--dashboards)
+- [☁️ Google Colab Cloud Training Pipeline](#️-google-colab-cloud-training-pipeline)
 - [🚀 Quickstart & Pipeline Execution](#-quickstart--pipeline-execution)
-- [🧪 Automated Testing Suite](#-automated-testing-suite)
+- [🧪 Automated Testing Suite (53/53 Passing)](#-automated-testing-suite-5353-passing)
 - [📄 Academic Report & Presentation Assets](#-academic-report--presentation-assets)
 
 ---
@@ -59,24 +62,40 @@ Traditional retail pricing tools merely predict tomorrow's sales volume or apply
 
 ### 3. Dual Dataset Architecture (Synthetic & Real Kaggle)
 - **Synthetic Indian Electronics Market:** 800+ realistic daily transactions across 4 multi-tier cities (Mumbai, Pune, Delhi, Bangalore), capturing footfall cycles, payday spikes, festive Diwali promotions, and competitor price scrapes.
-- **Real-World Kaggle Benchmark:** Ingests the `retail_price.csv` dataset (676 real transactions across 9 product categories) with leakage-free train/validation splits.
+- **Real-World Kaggle Benchmark:** Ingests the `retail_price.csv` dataset (676 real transactions across 9 product categories) with leakage-free train/validation splits, achieving $R^2 = 0.943$ and $\text{MAE} = 3.426$ on held-out test data.
 
-### 4. Spatial Multi-Store Stock Balancing (Transportation LP)
+### 4. End-to-End Dynamic Price Elasticity Resolution Engine
+- **Zero Static Elasticity Fallbacks:** Replaced brittle static constants with an autonomous 3-tier econometric and machine learning resolution hierarchy:
+  1. **Tier 1 (Empirical Log-Log OLS / 2SLS):** SKU-level log-log regressions estimating structural demand responsiveness $\beta \in [0.94, 2.48]$.
+  2. **Tier 2 (Model-Derived Multi-Scale Finite Differences):** Computes local derivative $\epsilon(P) = -\frac{\% \Delta \hat{D}}{\% \Delta P}$ via adaptive step sizes ($2.5\% \sim 5\%$). Overcomes discrete tree-leaf constant prediction regions that previously produced zero-derivative artifacts (`-0.0`).
+  3. **Tier 3 (Demand Curve Arc Elasticity):** Evaluates finite price increments along generated candidate pricing curves to guarantee continuous, strictly positive elasticity metrics.
+- Surfaces live point elasticity dynamically in REST API endpoints, real-time What-If simulator cards, table status badges, and telemetry tiles.
+
+### 5. Spatial Multi-Store Stock Balancing (Transportation LP)
 - Formulates multi-branch inventory transfers as a **Linear Programming (LP) Transportation Problem** solved via `scipy.optimize.linprog` with the **HiGHS** solver engine.
 - Reallocates stock from sluggish Tier-2 branches with surplus inventory ($>45\text{ days of supply}$) to high-velocity Tier-1 flagship stores ($<12\text{ days of supply}$) whenever the preserved retail margin exceeds inter-city freight transit costs.
 
-### 5. Multi-Round Game-Theoretic Duopoly Simulator
+### 6. Multi-Round Game-Theoretic Duopoly Simulator
 - Simulates an asymmetric Bertrand duopoly game between offline physical retail and online algorithmic scrapers.
 - Models differentiated demand with an empirical offline convenience premium ($\Delta_{\text{offline}} \approx \text{Rs.\,}1,000$).
 - Validates mathematical convergence to a stable Nash Equilibrium, proving that the engine avoids triggering destructive tit-for-tat price wars.
 
-### 6. Event-Driven Tech Launch Countdown Sensing
+### 7. Retailer Hub & Real-Data Onboarding Studio
+- Production-grade onboarding studio allowing offline retail managers to configure store networks, register hardware SKUs, and upload historical ERP transactions.
+- Provides downloadable ERP ingestion spreadsheets, automated column mapping, and immediate non-destructive markdown re-optimization upon data upload.
+- Industrial hardware iconography and zero-emoji high-contrast data tables tailored for enterprise retail workflows.
+
+### 8. Event-Driven Tech Launch Countdown Sensing
 - Dynamic RSS/News event listener (`scripts/monitor_tech_launches.py`) that detects breaking tech announcements (e.g., Apple Keynotes, Samsung Unpacked).
 - Exposes REST endpoints (`/api/lifecycle-event`) that perform non-destructive, in-memory lifecycle timeline compressions and immediately re-optimizes retail markdowns.
 
-### 7. Explainable AI (XAI) for Store Managers
+### 9. Explainable AI (XAI) for Store Managers
 - Built-in `ReasonGenerator` transforms complex mathematical multi-objective trade-offs into plain-English retail briefings.
 - Outlines clear operational headlines, unit-economics trade-offs, and offline conversion justifications.
+
+### 10. Model Ablation & Empirical Econometric Benchmarking
+- Head-to-head empirical evaluation suite comparing Monotone LightGBM, Unconstrained LightGBM, Random Forest, and Linear OLS.
+- Validates zero monotonic violations ($\frac{\partial \hat{D}}{\partial P} \le 0$) across 100% of candidate price points while maintaining state-of-the-art predictive accuracy.
 
 ---
 
@@ -95,13 +114,29 @@ $$\text{Depreciation Loss}(P) = \max(0, \, I_0 - \hat{D}(P) \cdot T) \cdot C_{\t
 
 $$\text{Subject to:} \quad C_{\text{unit}} \le P \le \text{MRP}$$
 
-### 2. Relative Price Elasticity Model (Log-Log Econometrics)
-Estimated via ordinary least squares (OLS) regression:
+### 2. Relative Price Elasticity Model (Log-Log Econometrics & Causal 2SLS)
+Estimated via Ordinary Least Squares (OLS) and Two-Stage Least Squares (2SLS) with instrumental variables:
+
 $$\ln(\text{Units} + 1) = \alpha - \beta \ln\left( \frac{P}{P_{\text{comp}}} \right) + \gamma \cdot \text{Weekend} + \epsilon$$
 
-### 3. Spatial Inventory Rebalancing Formulation (Transportation LP)
+To mitigate price endogeneity (where unobserved demand shocks simultaneously alter price and volume), the engine implements **Two-Stage Least Squares (2SLS)** using wholesale cost $C_{\text{unit}}$ as an exogenous supply-shifting instrument:
+- **First Stage:** $\ln(P) = \pi_0 + \pi_1 \ln(C_{\text{unit}}) + \mathbf{\pi}_2^\top \mathbf{X} + \nu$
+- **Second Stage:** $\ln(\text{Units} + 1) = \alpha_0 - \beta \widehat{\ln(P)} + \mathbf{\alpha}_2^\top \mathbf{X} + \eta$
+
+### 3. Dynamic Model-Derived Point Elasticity via Multi-Scale Finite Differences
+For gradient-boosted decision trees where analytical gradients are discontinuous step functions, the engine evaluates point price elasticity using multi-scale symmetric finite differences:
+
+$$\epsilon_{\text{point}}(P) = - \frac{P}{\hat{D}(P)} \cdot \left[ \frac{\hat{D}(P + \delta) - \hat{D}(P - \delta)}{2\delta} \right], \quad \delta \in [0.025 P, \, 0.05 P]$$
+
+### 4. Spatial Inventory Rebalancing Formulation (Transportation LP)
 $$\min \sum_{i \in \mathcal{S}} \sum_{j \in \mathcal{D}} c_{ij} \cdot x_{ij} - \sum_{j \in \mathcal{D}} (P_j - C) \cdot \min\left( \Delta D_j, \, \sum_{i} x_{ij} \right)$$
 $$\text{Subject to:} \quad \sum_{j \in \mathcal{D}} x_{ij} \le \text{Surplus}_i, \quad x_{ij} \ge 0$$
+
+### 5. Differentiated Bertrand Duopoly Game & Nash Equilibrium
+$$D_{\text{offline}}(P_{\text{off}}, P_{\text{on}}) = D_0 - b \cdot P_{\text{off}} + d \cdot (P_{\text{on}} + \Delta_{\text{offline}})$$
+$$D_{\text{online}}(P_{\text{off}}, P_{\text{on}}) = D_0 - b \cdot P_{\text{on}} + d \cdot (P_{\text{off}} - \Delta_{\text{offline}})$$
+The unique pure-strategy Nash Equilibrium $(P_{\text{off}}^*, P_{\text{on}}^*)$ satisfies:
+$$P_i^* = \arg\max_{P_i} (P_i - C_i) \cdot D_i(P_i, P_{-i}^*)$$
 
 ---
 
@@ -132,9 +167,10 @@ A live operational showcase evaluated over a 60-day horizon approaching a succes
 ```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                           1. INGESTION & DATA LAYER                         │
-│  • Synthetic Indian Retail Generator (stores, products, inventory, sales)   │
-│  • Kaggle Real-World Retail Dataset Adapter (retail_price.csv)             │
-│  • Automated Tech Launch RSS Monitor (Google News tech alerts)              │
+│  • Synthetic Indian Retail Market (stores, products, inventory, sales)      │
+│  • Kaggle Real-World Retail Dataset Adapter (retail_price.csv - R² = 0.943) │
+│  • Retailer Hub Real-Data Studio (/api/retailer/stores, products, sales)    │
+│  • Automated Tech Launch RSS Monitor (Google News tech alerts daemon)       │
 └──────────────────────────────────────┬──────────────────────────────────────┘
                                        │
                                        ▼
@@ -142,15 +178,17 @@ A live operational showcase evaluated over a 60-day horizon approaching a succes
 │                    2. FEATURE PIPELINE & PERSISTENCE                        │
 │  • Economic Ratios (P/MRP, P/P_comp) • Lifecycle Urgency (Days to Launch)   │
 │  • Velocity Differentials • Day-of-Week / Weekend Multipliers               │
+│  • Outlier Scrubbing & Zero-Sales Imputation Engine                         │
 └──────────────────────────────────────┬──────────────────────────────────────┘
                                        │
                     ┌──────────────────┴──────────────────┐
                     ▼                                     ▼
 ┌──────────────────────────────────────┐┌─────────────────────────────────────┐
-│     3A. DEMAND FORECASTING ENGINE    ││    3B. PRICE ELASTICITY ENGINE      │
-│  • LightGBM Monotone Tree Splits     ││  • Econometric Log-Log Regression   │
-│  • Non-Monotonicity Guardrails       ││  • Elasticity Regime Categorization │
-│  • Conformal Intervals (P10 - P90)   ││  • Cross-Price Sensitivity Vectors  │
+│     3A. DEMAND FORECASTING ENGINE    ││ 3B. DYNAMIC PRICE ELASTICITY ENGINE │
+│  • LightGBM Monotone Tree Splits     ││  • Tier 1: Log-Log OLS / 2SLS IV    │
+│  • Non-Monotonicity Guardrails       ││  • Tier 2: Adaptive Finite Diff     │
+│  • Conformal Intervals (P10 - P90)   ││  • Tier 3: Arc Elasticity Curves    │
+│  • Standalone Google Colab Trainer   ││  • Regime Flags (Elastic/Inelastic) │
 └──────────────────┬───────────────────┘└──────────────────┬──────────────────┘
                     │                                     │
                     └──────────────────┬──────────────────┘
@@ -162,6 +200,7 @@ A live operational showcase evaluated over a 60-day horizon approaching a succes
 │  • HiGHS Transportation Linear Program (Spatial Multi-Store Balancing)      │
 │  • Asymmetric Bertrand Duopoly Game Simulator (Nash Equilibrium Audit)      │
 │  • Multi-Week Stepped Price Glide-Path Generator                            │
+│  • Empirical Model Ablation Suite (Monotone vs Unconstrained vs RF vs OLS)  │
 └──────────────────────────────────────┬──────────────────────────────────────┘
                                        │
                     ┌──────────────────┴──────────────────┐
@@ -169,7 +208,8 @@ A live operational showcase evaluated over a 60-day horizon approaching a succes
 ┌──────────────────────────────────────┐┌─────────────────────────────────────┐
 │     5A. EXPLAINABLE AI (XAI) LAYER   ││       5B. ENTERPRISE REST API       │
 │  • ReasonGenerator Briefing Memos    ││  • FastAPI High-Performance Backend │
-│  • Unit-Economics Tradeoff Ledger    ││  • Live Simulations & In-Memory State│
+│  • Unit-Economics Tradeoff Ledger    ││  • Dynamic Elasticity Endpoints     │
+│  • Strategic Markdown Justifications ││  • Retailer Hub Onboarding Endpoints│
 └──────────────────┬───────────────────┘└──────────────────┬──────────────────┘
                     │                                     │
                     └──────────────────┬──────────────────┘
@@ -177,9 +217,10 @@ A live operational showcase evaluated over a 60-day horizon approaching a succes
                                        ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         6. CLIENT PRESENTATION LAYER                        │
-│  • Streamlit Web Dashboard (6 Interactive Analytic Modules)                 │
+│  • Streamlit Web Dashboard (6 Interactive Analytical Modules)               │
+│  • Fast Static Single-Page App (Mounted directly on FastAPI port 8000)      │
+│  • Retailer Onboarding Studio (Store & SKU setup, ERP CSV ingestion)        │
 │  • Next.js 14 / TypeScript Modern Web Application                           │
-│  • Fast Static Single-Page App (Mounted directly on FastAPI)                │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -220,7 +261,7 @@ Technical Seminar project/
     │   │
     │   ├── models/                   # Predictive Modeling & Machine Learning
     │   │   ├── demand_forecaster.py  # Monotone LightGBM Demand Forecaster with conformal bounds
-    │   │   ├── elasticity_estimator.py # Econometric log-log price elasticity regression
+    │   │   ├── elasticity_estimator.py # 3-Tier Dynamic Price Elasticity (OLS, 2SLS, Finite Difference)
     │   │   └── model_evaluator.py    # Cross-validation and regression evaluation metrics
     │   │
     │   ├── optimization/             # Operations Research & Constrained Solvers
@@ -246,16 +287,16 @@ Technical Seminar project/
     │   ├── style.css                 # Custom CSS stylesheet
     │   └── pages/
     │       ├── 1_Overview.py         # Module 1: Executive KPI overview & pricing action queue
-    │       ├── 2_SKU_Pricing.py      # Module 2: SKU pricing deep-dive & dual-axis curves
+    │       ├── 2_SKU_Pricing.py      # Module 2: SKU pricing deep-dive & dynamic point elasticity
     │       ├── 3_Price_Simulator.py  # Module 3: Real-time price sandbox & sensitivity sliders
     │       ├── 4_Inventory_Risk.py   # Module 4: Obsolescence risk radar & markdown urgency
     │       ├── 5_Competitor_Monitor.py # Module 5: Online vs offline price intelligence
     │       └── 6_Multi_Store_Balancing.py # Module 6: Inter-store transportation transfer routes
     │
     ├── frontend/                     # Fast Static Single-Page Dashboard (Mounted on FastAPI)
-    │   ├── index.html                # Responsive web analytics interface
+    │   ├── index.html                # Responsive web analytics & Retailer Studio interface
     │   ├── css/                      # Stylesheets
-    │   └── js/                       # Interactive chart scripts
+    │   └── js/                       # Interactive chart scripts & telemetry tile logic
     │
     ├── web-app/                      # Modern Next.js 14 / TypeScript Web Application
     │   ├── package.json              # Next.js dependencies & scripts
@@ -263,32 +304,35 @@ Technical Seminar project/
     │   ├── next.config.ts            # Next.js server configuration
     │   └── src/                      # React components, pages, and hooks
     │
-    ├── scripts/                      # Autonomous Background Daemons
-    │   └── monitor_tech_launches.py  # Google News RSS scraper for tech launch countdowns
+    ├── scripts/                      # Autonomous Background Daemons & Cloud Tools
+    │   ├── monitor_tech_launches.py  # Google News RSS scraper for tech launch countdowns
+    │   └── train_colab.py            # Automated cloud-training script for Google Colab
     │
-    ├── tests/                        # Automated Pytest Suite
-    │   ├── test_models.py            # Unit tests for Monotone LightGBM & Elasticity
-    │   ├── test_optimizer.py         # Unit tests for Lifecycle Optimizer & MRP ceiling
-    │   ├── test_data_pipeline.py     # Unit tests for data generation and merging
-    │   ├── test_explainability.py    # Unit tests for ReasonGenerator memos
-    │   ├── test_api_endpoints.py     # Unit tests for FastAPI HTTP routes
-    │   ├── test_kaggle_pipeline.py   # Unit tests for Kaggle dataset ingestion
-    │   ├── test_ablation.py          # Unit tests for model ablation sweeps
-    │   └── test_game_theory.py       # Unit tests for duopoly simulation convergence
+    ├── tests/                        # Automated Pytest Suite (53 Passing Tests)
+    │   ├── test_models.py            # Unit tests for Monotone LightGBM & Elasticity (7 tests)
+    │   ├── test_optimizer.py         # Unit tests for Lifecycle Optimizer & MRP ceiling (10 tests)
+    │   ├── test_data_pipeline.py     # Unit tests for data generation and merging (6 tests)
+    │   ├── test_explainability.py    # Unit tests for ReasonGenerator memos (4 tests)
+    │   ├── test_api_endpoints.py     # Integration tests for FastAPI HTTP routes (14 tests)
+    │   ├── test_kaggle_pipeline.py   # Unit tests for Kaggle dataset ingestion (4 tests)
+    │   ├── test_ablation.py          # Unit tests for model ablation sweeps (4 tests)
+    │   └── test_game_theory.py       # Unit tests for duopoly simulation convergence (4 tests)
     │
     ├── data/                         # Data Storage
-    │   ├── raw/                      # Raw incoming retail feeds
+    │   ├── raw/                      # Raw incoming retail feeds (retail_price.csv)
     │   ├── synthetic/                # Generated Indian retail CSVs (products, sales, etc.)
     │   ├── processed/                # Unified preprocessed feature matrices
+    │   ├── retailer_uploads/         # Uploaded CSVs from Retailer Hub Onboarding Studio
     │   └── import_templates/         # CSV import templates for retail ERP onboarding
     │
     ├── models_saved/                 # Serialized Model Checkpoints
     │   ├── demand_forecaster_lightgbm.joblib # Trained LightGBM model (synthetic)
-    │   └── demand_forecaster_kaggle.joblib   # Trained LightGBM model (Kaggle)
+    │   └── demand_forecaster_kaggle.joblib   # Trained LightGBM model (Kaggle R² = 0.943)
     │
     ├── docs/                         # Retailer Documentation & Guides
     │   ├── Retailer_User_Guide.pdf   # Step-by-step user manual for store managers
-    │   └── Real_Data_Import_Templates.zip # Blank ERP ingestion spreadsheets
+    │   ├── Real_Data_Import_Templates.zip # Blank ERP ingestion spreadsheets
+    │   └── google_colab_training_guide.md # Comprehensive guide for training on Google Colab
     │
     ├── report/                       # Mirrored Production LaTeX Report
     │   ├── main.tex                  # Mirrored LaTeX source
@@ -303,27 +347,31 @@ Technical Seminar project/
 
 ## 🔌 REST API Endpoints (FastAPI)
 
-When running the FastAPI server (`uvicorn api.main:app --port 8000`), the engine provides the following endpoints:
+When running the FastAPI server (`uvicorn api.main:app --port 8000`), the engine provides the following high-performance REST endpoints:
 
-| Method | Endpoint | Description |
-| :---: | :--- | :--- |
-| `GET` | `/health` or `/api/health` | Service health check and status confirmation. |
-| `GET` | `/api/summary` | Portfolio-level KPIs (valuation, net profit lift, action counts, risk tiers). Accepts `?model_source=synthetic\|kaggle`. |
-| `GET` | `/api/optimizations` | Full catalog optimization results including price recommendations, demand curves, and XAI memos. |
-| `POST` | `/api/optimizations/refresh` | Forces live in-memory cache refresh and reloads updated retail CSV files. |
-| `POST` | `/api/simulate` | Real-time "What-If" sandbox. Evaluates candidate prices, inventory, and competitor shifts with conformal prediction bounds. |
-| `POST` | `/api/lifecycle-event` | Ingests breaking tech launch countdowns (e.g. iPhone 18) and immediately triggers in-memory markdown re-optimization. |
-| `POST` | `/api/reset-events` | Resets all active lifecycle overrides back to standard baseline schedules. |
-| `GET` | `/api/active-events` | Retrieves list of currently active launch countdowns and urgent alerts. |
-| `GET` | `/api/transfers` | Solves multi-store transportation LP (HiGHS) and returns inter-store transfer routes. |
-| `GET` | `/api/game-theory/simulate` | Simulates multi-round asymmetric Bertrand duopoly game to verify Nash equilibrium stability. |
-| `GET` | `/api/models/ablation` | Returns empirical ablation benchmark comparing Monotone LightGBM, Unconstrained, RF, and OLS. |
+| Method | Endpoint | Description | Key Output Fields |
+| :---: | :--- | :--- | :--- |
+| `GET` | `/health` or `/api/health` | Service health check and status confirmation. | `status`, `timestamp` |
+| `GET` | `/api/summary` | Portfolio-level KPIs (valuation, profit lift, action counts, risk tiers). Accepts `?model_source=synthetic\|kaggle`. | `total_portfolio_valuation`, `total_projected_profit_lift`, `urgent_actions_count` |
+| `GET` | `/api/optimizations` | Full catalog optimization results including prices, demand curves, dynamic point elasticity, and XAI memos. | `recommended_price`, `point_elasticity`, `elasticity_regime`, `elasticity_source`, `reason_memo` |
+| `POST` | `/api/optimizations/refresh` | Forces live in-memory cache refresh and reloads updated retail CSV files. | `status`, `reloaded_skus_count` |
+| `POST` | `/api/simulate` | Real-time "What-If" sandbox evaluating candidate prices, inventory, and competitor shifts with conformal bounds. | `simulated_price`, `simulated_daily_sales`, `simulated_profit`, `point_elasticity`, `elasticity_regime` |
+| `POST` | `/api/lifecycle-event` | Ingests breaking tech launch countdowns (e.g. iPhone 18) and triggers non-destructive markdown re-optimization. | `status`, `event_applied`, `days_to_launch` |
+| `POST` | `/api/reset-events` | Resets all active lifecycle overrides back to standard baseline schedules. | `status`, `message` |
+| `GET` | `/api/active-events` | Retrieves list of currently active launch countdowns and urgent alerts. | `events_active`, `overrides` |
+| `GET` | `/api/transfers` | Solves multi-store transportation LP (HiGHS) and returns inter-store transfer routes. | `routes`, `total_freight_cost`, `net_margin_preserved` |
+| `GET` | `/api/game-theory/simulate` | Simulates multi-round asymmetric Bertrand duopoly game to verify Nash equilibrium stability. | `nash_equilibrium_price`, `iterations_to_converge`, `rounds` |
+| `GET` | `/api/models/ablation` | Returns empirical ablation benchmark comparing Monotone LightGBM, Unconstrained, RF, and OLS. | `ablation_table`, `monotonic_violation_counts` |
+| `POST` | `/api/retailer/stores` | Registers a new physical retail store branch in the retailer network. | `status`, `store_id`, `city`, `tier` |
+| `POST` | `/api/retailer/products` | Registers a new electronics hardware SKU in the retailer catalog. | `status`, `product_id`, `mrp`, `base_cost` |
+| `POST` | `/api/retailer/historical-data` | Uploads historical ERP sales CSV, verifies schema, and triggers live pipeline refresh. | `status`, `rows_imported`, `filename` |
+| `GET` | `/api/retailer/export-template` | Downloads pre-formatted ERP CSV templates for seamless retail onboarding. | Binary CSV stream (`retail_sales_template.csv`) |
 
 ---
 
 ## 💻 User Interfaces & Dashboards
 
-The engine provides three client interfaces:
+The engine provides three client interfaces tailored for different enterprise roles:
 
 ### 1. Interactive Streamlit Dashboard (`dashboard/app.py`)
 Launch with:
@@ -332,13 +380,21 @@ streamlit run dashboard/app.py
 ```
 Includes 6 interactive analytical modules:
 1. **Executive Portfolio Overview:** Portfolio valuation, prioritized pricing queue, and projected financial lift.
-2. **SKU Pricing Deep-Dive:** Dual-axis demand & profit curves, inventory drawdown trajectory, and retailer briefing memos.
-3. **Price Simulator Sandbox:** Live "What-If" sliders with competitor stockout toggles, footfall modifiers, and profit curves.
+2. **SKU Pricing Deep-Dive:** Dual-axis demand & profit curves, inventory drawdown trajectory, dynamic point elasticity KPI cards, and retailer briefings.
+3. **Price Simulator Sandbox:** Live "What-If" sliders with competitor stockout toggles, footfall modifiers, and real-time point elasticity readouts.
 4. **Inventory Risk Radar:** Days-to-successor countdown radar, stranded inventory exposure, and markdown urgency matrix.
 5. **Competitor Intelligence Monitor:** Online vs offline price dispersion radar, identifying stockout price-hike opportunities.
 6. **Multi-Store Balancing:** Store velocity vs stock disbalance matrix, inter-store transfer generator, and phased multi-week schedules.
 
-### 2. Modern Next.js 14 Web Application (`web-app/`)
+### 2. Fast Static Single-Page Dashboard & Retailer Studio (`frontend/`)
+Mounted directly by the FastAPI backend at `http://localhost:8000/`.
+- **Light & Dark Mode Support:** Full dual-theme design system with instant switching, `localStorage` persistence, and automatic Chart.js color palette adaptation.
+- **Dynamic Telemetry Tiles:** 5 live KPI tiles including Portfolio Valuation, Projected Profit Lift, Urgent Actions, Mean Days to Successor, and dynamic **Point Price Elasticity**.
+- **Retailer Hub & Onboarding Studio:** Store network configuration, SKU catalog setup, and drag-and-drop historical sales CSV uploads with automated column verification.
+- **Industrial Hardware Iconography:** Clean SVG vector icons for Smartphones, Display & Monitors, Audio & Acoustics, Computing & Laptops, and Wearables (zero emojis).
+- **Responsive Command Shell:** Full desktop and mobile-responsive drawer with keyboard navigation (`Ctrl+K` command palette, deep hash links).
+
+### 3. Modern Next.js 14 Web Application (`web-app/`)
 Built with Next.js 14, TypeScript, and TailwindCSS:
 ```powershell
 cd web-app
@@ -346,11 +402,28 @@ npm install
 npm run dev
 ```
 
-### 3. Fast Static Single-Page Dashboard (`frontend/`)
-Mounted directly by the FastAPI backend at `http://localhost:8000/`.
-- **Light & Dark Mode Support:** Full dual-theme design system with instant switching, `localStorage` persistence, and automatic Chart.js color palette adaptation.
-- **One-Click Page Refresh:** Dedicated `Refresh Page` quick-reload button alongside live `Sync Data` recompute triggers.
-- **Responsive Command Shell:** Full desktop and mobile-responsive drawer with keyboard navigation (`Ctrl+K` command palette, deep hash links).
+---
+
+## ☁️ Google Colab Cloud Training Pipeline
+
+For training models on high-performance cloud hardware or retraining on large-scale datasets, the repository provides an automated cloud execution pipeline:
+
+- **Colab Script:** [`scripts/train_colab.py`](file:///c:/Users/gaura/OneDrive/Desktop/Technical%20Seminar%20project/AI%20PRice%20recomm/scripts/train_colab.py)
+- **Detailed Step-by-Step Guide:** [`docs/google_colab_training_guide.md`](file:///c:/Users/gaura/OneDrive/Desktop/Technical%20Seminar%20project/AI%20PRice%20recomm/docs/google_colab_training_guide.md)
+
+### Running in Google Colab:
+```python
+# 1. Clone repository in Colab
+!git clone https://github.com/ElevateDynasty/Smart-Pricing-Engine.git
+%cd Smart-Pricing-Engine/"AI PRice recomm"
+
+# 2. Install dependencies
+!pip install -r requirements.txt
+
+# 3. Execute cloud training pipeline (synthetic + Kaggle benchmark)
+!python scripts/train_colab.py
+```
+Upon completion, the trained models (`demand_forecaster_lightgbm.joblib` and `demand_forecaster_kaggle.joblib`) are verified, evaluated for monotonic constraints, and packaged for download back to your local repository.
 
 ---
 
@@ -385,7 +458,7 @@ python main.py --kaggle
 
 ### 3. Launching the Backend API & Web Dashboards
 ```powershell
-# Start FastAPI backend server (API available at http://localhost:8000/docs)
+# Start FastAPI backend server (API available at http://localhost:8000/docs, Web UI at http://localhost:8000/)
 python -m uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
 
 # In a separate terminal, launch the Streamlit dashboard
@@ -399,21 +472,27 @@ python scripts/monitor_tech_launches.py
 
 ---
 
-## 🧪 Automated Testing Suite
+## 🧪 Automated Testing Suite (53/53 Passing)
 
-The repository includes 9 unit and integration test suites covering the entire mathematical and operational pipeline:
+The repository includes 8 comprehensive unit and integration test suites covering the entire mathematical, machine learning, and operational pipeline. All **53 tests pass with 100% verification**:
 
 ```powershell
 pytest tests/ -v
 ```
 
-### Test Coverage Highlights:
-- **`test_models.py`:** Validates LightGBM monotonic constraint satisfaction ($\frac{\partial \hat{D}}{\partial P} \le 0$) across the price grid.
-- **`test_optimizer.py`:** Verifies strict MRP boundary adherence ($P \le \text{MRP}$) and positive profit lift generation.
-- **`test_api_endpoints.py`:** Validates FastAPI route integrity, HTTP responses, and payload schemas.
-- **`test_game_theory.py`:** Tests duopoly simulation round iterations and Nash equilibrium stability.
-- **`test_kaggle_pipeline.py`:** Tests real-data adapter, leakage-free cross-validation, and metric computation.
-- **`test_ablation.py`:** Tests model ablation matrix generation and monotonicity audit flags.
+### Test Suite Breakdown:
+
+| Test Module | Tests | Primary Verification Focus |
+| :--- | :---: | :--- |
+| [`tests/test_models.py`](file:///c:/Users/gaura/OneDrive/Desktop/Technical%20Seminar%20project/AI%20PRice%20recomm/tests/test_models.py) | **7** | Monotone split constraints ($\frac{\partial \hat{D}}{\partial P} \le 0$), conformal bounds, log-log OLS, 2SLS IV estimation. |
+| [`tests/test_optimizer.py`](file:///c:/Users/gaura/OneDrive/Desktop/Technical%20Seminar%20project/AI%20PRice%20recomm/tests/test_optimizer.py) | **10** | Discrete lattice grid search, MRP legal ceiling adherence ($P \le \text{MRP}$), holding costs, depreciation write-downs. |
+| [`tests/test_data_pipeline.py`](file:///c:/Users/gaura/OneDrive/Desktop/Technical%20Seminar%20project/AI%20PRice%20recomm/tests/test_data_pipeline.py) | **6** | Synthetic Indian market synthesis, festive Diwali multipliers, feature ratio engineering, outlier sanitization. |
+| [`tests/test_explainability.py`](file:///c:/Users/gaura/OneDrive/Desktop/Technical%20Seminar%20project/AI%20PRice%20recomm/tests/test_explainability.py) | **4** | Plain-English `ReasonGenerator` retail briefings, unit-economics tradeoff breakdowns, headline generation. |
+| [`tests/test_api_endpoints.py`](file:///c:/Users/gaura/OneDrive/Desktop/Technical%20Seminar%20project/AI%20PRice%20recomm/tests/test_api_endpoints.py) | **14** | REST endpoint integrity, `/api/simulate` schemas, event timeline overrides, non-static positive point elasticity verification across all SKUs. |
+| [`tests/test_kaggle_pipeline.py`](file:///c:/Users/gaura/OneDrive/Desktop/Technical%20Seminar%20project/AI%20PRice%20recomm/tests/test_kaggle_pipeline.py) | **4** | Ingestion of `retail_price.csv`, categorical encoding, leakage-free train/validation splits, LightGBM training ($R^2 = 0.943$). |
+| [`tests/test_ablation.py`](file:///c:/Users/gaura/OneDrive/Desktop/Technical%20Seminar%20project/AI%20PRice%20recomm/tests/test_ablation.py) | **4** | Empirical ablation sweeps across Monotone LightGBM, Unconstrained LightGBM, Random Forest, and Linear OLS. |
+| [`tests/test_game_theory.py`](file:///c:/Users/gaura/OneDrive/Desktop/Technical%20Seminar%20project/AI%20PRice%20recomm/tests/test_game_theory.py) | **4** | Asymmetric Bertrand duopoly game iterations, offline convenience premium stability, Nash equilibrium convergence. |
+| **Total Test Count** | **53** | **100% Passing (0 failures, 0 skipped, 0 regressions)** |
 
 ---
 
@@ -449,3 +528,4 @@ This project was developed by:
 *Bachelor of Technology in Computer Science & Engineering*  
 *Academic Session 2025–2026*  
 *Specialization: Constrained Revenue Management, Operations Research & Applied Machine Learning*
+
